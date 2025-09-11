@@ -48,6 +48,7 @@ dependencies = [
     "websockets>=15.0.1",
     "aiofiles>=24.1.0",
     "tenacity>=8.2.3",  # For retry logic
+    "nest-asyncio>=1.5.8",  # For async loop handling in CLI
     
     # Utilities
     "loguru>=0.7.2",  # Structured logging

@@ -217,3 +217,4 @@ If cache isn't invalidating properly:
 - do not use co-authored in commit messages
 - always think if you can use subagents for the job. it helps you save context space
 - you have access to MCP such as sequential thinking & perplexity Search
+- over engineering is an enemy of value delivery

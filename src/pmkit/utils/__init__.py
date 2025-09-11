@@ -16,6 +16,7 @@ from .tracing import (
     get_logger_with_context,
 )
 from .decorators import log_operation, log_async, log_errors, trace_performance
+from .async_utils import run_async, retry_with_backoff, timeout, ensure_async
 
 __all__ = [
     # Console
@@ -40,4 +41,10 @@ __all__ = [
     'log_async', 
     'log_errors',
     'trace_performance',
+    
+    # Async utilities
+    'run_async',
+    'retry_with_backoff',
+    'timeout',
+    'ensure_async',
 ]

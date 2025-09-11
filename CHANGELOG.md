@@ -29,3 +29,15 @@ All notable changes to PM-Kit are documented in this file.
 - Added Rich console output with beautiful formatting
 - Created JSON file logging with rotation (10MB, 7 days)
 - Built request tracing with context injection and performance monitoring
+
+#### PMKIT-005: Create base exception hierarchy
+- Defined PMKitError base class with Rich formatting
+- Added specific exceptions (ConfigError, ContextError, LLMError, ValidationError)
+- Implemented beautiful error panels with helpful suggestions
+- Integrated with console for user-friendly error display
+
+#### PMKIT-006: Setup async utilities module
+- Created async/sync bridge with run_async() helper
+- Implemented retry decorator with tenacity for API calls
+- Added timeout decorator for both sync/async functions
+- Built ensure_async() converter for API flexibility
