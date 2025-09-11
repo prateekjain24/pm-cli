@@ -1,11 +1,5 @@
 # 🚀 PM-Kit
 
-[![CI/CD](https://img.shields.io/github/actions/workflow/status/prateekjain24/pmkit/ci.yml?branch=main&style=for-the-badge)](https://github.com/yourusername/pmkit/actions)
-[![PyPI version](https://img.shields.io/pypi/v/pmkit.svg?style=for-the-badge)](https://pypi.org/project/pmkit/)
-[![Code Coverage](https://img.shields.io/codecov/c/github/prateekjain24/pmkit?style=for-the-badge)](https://codecov.io/gh/prateekjain24/pmkit)
-[![License](https://img.shields.io/pypi/l/pmkit.svg?style=for-the-badge)](https://github.com/prateekjain24/pmkit/blob/main/LICENSE)
-[![Python Versions](https://img.shields.io/pypi/pyversions/pmkit.svg?style=for-the-badge)](https://pypi.org/project/pmkit/)
-
 A context-aware, CLI-first assistant for product managers that treats your documentation like code.
 
 PM-Kit helps you create, manage, and publish PRDs, roadmaps, and other product artifacts directly from your terminal, using the power of LLMs with deep context about your company, product, and market.

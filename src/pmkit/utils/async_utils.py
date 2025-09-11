@@ -197,7 +197,9 @@ def ensure_async(func: Callable[..., T]) -> Callable[..., Coroutine[Any, Any, T]
     async def wrapper(*args: Any, **kwargs: Any) -> T:
         # Run sync function in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, func, *args, **kwargs)
+        # Use partial to properly handle kwargs
+        from functools import partial
+        return await loop.run_in_executor(None, partial(func, *args, **kwargs))
     
     return wrapper
 

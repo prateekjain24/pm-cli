@@ -328,6 +328,28 @@ class LoggerAdapter:
         """Log exception with traceback."""
         self._logger.exception(message, **kwargs)
     
+    def log(self, level: Union[str, int], message: str, **kwargs: Any) -> None:
+        """Log message at the specified level."""
+        # Convert string level to int if needed
+        if isinstance(level, str):
+            level = level.upper()
+            # Map to loguru methods
+            level_map = {
+                'TRACE': self._logger.trace,
+                'DEBUG': self._logger.debug,
+                'INFO': self._logger.info,
+                'SUCCESS': self._logger.success,
+                'WARNING': self._logger.warning,
+                'WARN': self._logger.warning,
+                'ERROR': self._logger.error,
+                'CRITICAL': self._logger.critical,
+            }
+            log_func = level_map.get(level, self._logger.info)
+            log_func(message, **kwargs)
+        else:
+            # For numeric levels, use the generic log method
+            self._logger.log(level, message, **kwargs)
+    
     def time_operation(self, operation: str) -> "TimedOperation":
         """Create a context manager that times an operation."""
         return TimedOperation(self, operation)

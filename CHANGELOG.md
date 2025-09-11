@@ -41,3 +41,15 @@ All notable changes to PM-Kit are documented in this file.
 - Implemented retry decorator with tenacity for API calls
 - Added timeout decorator for both sync/async functions
 - Built ensure_async() converter for API flexibility
+
+#### PMKIT-007: Implement path utilities
+- Created project root detection (.pmkit or .git)
+- Added thread-safe directory management
+- Implemented atomic file writes with backup
+- Built path security validation against traversal attacks
+
+#### PMKIT-008: Setup testing infrastructure
+- Configured pytest with comprehensive fixtures
+- Created 179 tests covering all modules
+- Added mock factories for testing
+- Achieved 100% test pass rate

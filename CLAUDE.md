@@ -218,3 +218,5 @@ If cache isn't invalidating properly:
 - always think if you can use subagents for the job. it helps you save context space
 - you have access to MCP such as sequential thinking & perplexity Search
 - over engineering is an enemy of value delivery
+- always update the CHANGELOG.md after finishing work. Commit after testing.
+- never cheat on tests and make them pass by rewriting the tests or writing the test in a way it always passes.
