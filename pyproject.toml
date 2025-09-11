@@ -1,0 +1,194 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pmkit"
+version = "0.1.0"
+description = "PM-Kit: CLI-first PM docs with LLM superpowers"
+authors = [{name = "Prateek", email = "pmkit@prateek.mozmail.com"}]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["pm", "product-management", "prd", "cli", "documentation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Documentation",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    # CLI Framework
+    "typer>=0.17.4",
+    "rich>=14.1.0",
+    "prompt_toolkit>=3.0.52",
+    
+    # Configuration
+    "pyyaml>=6.0.2",
+    "pydantic>=2.11.7",
+    "python-dotenv>=1.1.1",
+    
+    # LLM SDKs (Latest 2025 versions)
+    "anthropic>=0.67.0",
+    "openai>=1.107.1",
+    "google-genai>=1.35.0",
+    "ollama>=0.5.3",
+    
+    # External Integrations
+    "atlassian-python-api>=4.0.7",
+    "PyGithub>=2.8.1",
+    
+    # Networking & Async
+    "httpx>=0.28.1",
+    "websockets>=15.0.1",
+    "aiofiles>=24.1.0",
+    
+    # Utilities
+    "click>=8.2.1",  # For advanced CLI features
+    "jinja2>=3.1.6",  # For template rendering
+    "markdown2>=2.5.4",  # For markdown processing
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=25.1.0",
+    "ruff>=0.13.0",
+    "mypy>=1.17.1",
+    "pre-commit>=4.3.0",
+    "ipython>=9.5.0",
+]
+
+test = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.0",
+    "faker>=37.6.0",
+]
+
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.19",
+    "mkdocstrings[python]>=0.30.0",
+]
+
+all = [
+    "pmkit[dev,test,docs]",
+]
+
+[project.scripts]
+pmkit = "pmkit.cli:app"
+pm = "pmkit.cli:app"
+
+[project.urls]
+"Homepage" = "https://github.com/yourusername/pmkit"
+"Bug Reports" = "https://github.com/yourusername/pmkit/issues"
+"Source" = "https://github.com/yourusername/pmkit"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pmkit*"]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+pmkit = [
+    "templates/**/*.yaml",
+    "templates/**/*.md",
+    "config/*.yaml",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = '\.pyi?
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "T20",  # flake8-print
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # imported but unused
+"tests/*" = ["T20"]  # print statements in tests
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = false
+no_implicit_optional = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--cov=pmkit",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["pmkit"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "except ImportError:",
+]
