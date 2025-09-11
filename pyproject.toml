@@ -91,8 +91,8 @@ all = [
 ]
 
 [project.scripts]
-pmkit = "pmkit.cli:app"
-pm = "pmkit.cli:app"
+pmkit = "pmkit.cli.main:cli_main"
+pm = "pmkit.cli.main:cli_main"
 
 [project.urls]
 "Homepage" = "https://github.com/yourusername/pmkit"

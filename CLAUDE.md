@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CLI Design Guidelines
+
+PM-Kit prioritizes **beautiful, delightful CLI experiences**. When implementing CLI features:
+- Use Rich library for colors, tables, progress bars, and panels
+- Provide immediate visual feedback for all actions
+- Include emojis for better visual hierarchy (🚀 ✅ ❌ ⚠️ 📝 etc.)
+- Show progress with animations for long operations
+- Format errors as helpful suggestions, not stack traces
+- Use consistent color palette (see DESIGN.md)
+
 ## Project Overview
 
 PM-CLI (pmkit) is a context-aware PM assistant that treats PRDs, roadmaps, OKRs, and release notes as code. It uses a two-layer architecture:
@@ -203,3 +213,6 @@ If cache isn't invalidating properly:
 1. Check `ContextVersion.compute_version()` is hashing all context files
 2. Verify file paths are sorted for deterministic ordering
 3. Clear `.pmkit/.cache/` manually if needed
+- never mention claude or anthropic or claude code in commit messages
+- do not use co-authored in commit messages
+- always think if you can use subagents for the job. it helps you save context space
