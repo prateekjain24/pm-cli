@@ -40,6 +40,10 @@ new_app = typer.Typer(
 )
 app.add_typer(new_app, name="new")
 
+# Add configuration management subcommand
+from pmkit.cli.commands.config import app as config_app
+app.add_typer(config_app, name="config")
+
 
 def handle_debug_mode() -> None:
     """Configure debug mode based on environment variable."""

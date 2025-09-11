@@ -1,0 +1,67 @@
+# PM-Kit Configuration
+# This file configures PM-Kit for your project
+# Learn more: https://github.com/yourusername/pmkit
+
+# Project Information
+project_name: "My Product"
+# project_root: /path/to/project  # Defaults to current directory
+
+# LLM Provider Settings
+llm:
+  provider: openai  # Options: openai, anthropic, gemini, ollama
+  # model: gpt-4-turbo-preview  # Auto-detected based on provider
+  timeout: 30  # Request timeout in seconds
+  max_retries: 3  # Number of retry attempts
+  # base_url: http://localhost:11434  # For Ollama or custom endpoints
+
+# Cache Settings
+cache:
+  enabled: true
+  directory: .pmkit/.cache  # Cache directory path
+  ttl_seconds: 86400  # 24 hours cache TTL
+  max_size_mb: 100  # Maximum cache size
+
+# Context Management
+context:
+  auto_enrich: true  # Automatically enrich context with external data
+  validation_mode: strict  # Options: strict, relaxed, none
+  auto_backup: true  # Backup context changes
+  max_history_items: 10  # Number of history items to keep
+
+# Application Settings  
+app:
+  debug: false  # Enable debug mode
+  log_level: INFO  # Options: DEBUG, INFO, WARNING, ERROR
+  pretty_json: true  # Pretty print JSON output
+  enable_telemetry: false  # Anonymous usage telemetry
+  no_color: false  # Disable colored output
+
+# External Integrations (Optional)
+# Uncomment and configure as needed
+integrations:
+  # Confluence
+  # confluence_url: https://your-domain.atlassian.net
+  # confluence_username: your-email@company.com
+  # confluence_space_key: PROD
+  
+  # Jira
+  # jira_url: https://your-domain.atlassian.net
+  # jira_project_key: PROJ
+  
+  # GitHub
+  # github_owner: your-org
+  # github_repo: your-repo
+
+# API Keys and Secrets
+# Set these as environment variables for security:
+# - OPENAI_API_KEY=your_openai_key
+# - ANTHROPIC_API_KEY=your_anthropic_key
+# - GOOGLE_API_KEY=your_google_key
+# - CONFLUENCE_API_TOKEN=your_confluence_token
+# - JIRA_API_TOKEN=your_jira_token
+# - GITHUB_TOKEN=your_github_token
+
+# You can also create a .env file in this directory with:
+# OPENAI_API_KEY=your_key_here
+# PMKIT_DEBUG=false
+# PMKIT_LOG_LEVEL=INFO

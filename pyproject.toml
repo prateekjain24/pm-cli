@@ -95,9 +95,9 @@ pmkit = "pmkit.cli.main:cli_main"
 pm = "pmkit.cli.main:cli_main"
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/pmkit"
-"Bug Reports" = "https://github.com/yourusername/pmkit/issues"
-"Source" = "https://github.com/yourusername/pmkit"
+"Homepage" = "https://github.com/prateekjain24/pmkit"
+"Bug Reports" = "https://github.com/prateekjain24/pmkit/issues"
+"Source" = "https://github.com/prateekjain24/pmkit"
 
 [tool.setuptools.packages.find]
 where = ["src"]

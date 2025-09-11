@@ -216,3 +216,4 @@ If cache isn't invalidating properly:
 - never mention claude or anthropic or claude code in commit messages
 - do not use co-authored in commit messages
 - always think if you can use subagents for the job. it helps you save context space
+- you have access to MCP such as sequential thinking & perplexity Search
