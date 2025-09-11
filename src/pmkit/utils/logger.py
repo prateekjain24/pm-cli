@@ -248,7 +248,8 @@ def setup_logging(config: Optional[Config] = None) -> None:
     
     logger.add(
         log_file,
-        format=json_serializer,
+        format="{message}",  # We'll serialize to JSON in the sink
+        serialize=True,  # Serialize the record to JSON
         level='DEBUG',  # Always log everything to file
         rotation='10 MB',
         retention='7 days',
@@ -261,11 +262,9 @@ def setup_logging(config: Optional[Config] = None) -> None:
     # Log startup message
     logger.info(
         "PM-Kit logging initialized",
-        extra={
-            'console_level': log_level,
-            'debug_mode': debug_mode,
-            'log_file': str(log_file),
-        }
+        console_level=log_level,
+        debug_mode=debug_mode,
+        log_file=str(log_file),
     )
 
 
