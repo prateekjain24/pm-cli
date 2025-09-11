@@ -55,6 +55,7 @@ dependencies = [
     "tiktoken>=0.5.2",  # Token counting for OpenAI
     "jinja2>=3.1.6",  # For template rendering
     "markdown2>=2.5.4",  # For markdown processing
+    "psutil>=6.1.1",  # System and process utilities for tracing
 ]
 
 [project.optional-dependencies]
@@ -187,6 +188,7 @@ module = [
     "google.genai",
     "ollama",
     "atlassian",
+    "psutil",
 ]
 ignore_missing_imports = true
 

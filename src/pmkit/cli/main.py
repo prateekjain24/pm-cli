@@ -18,6 +18,8 @@ from rich.panel import Panel
 
 from pmkit import __version__
 from pmkit.utils.console import console
+from pmkit.utils.logger import setup_logging, get_logger
+from pmkit.config import get_config_safe
 
 
 # Create main Typer app with beautiful styling
@@ -45,23 +47,46 @@ from pmkit.cli.commands.config import app as config_app
 app.add_typer(config_app, name="config")
 
 
+def initialize_logging() -> None:
+    """Initialize logging system early in the application lifecycle."""
+    try:
+        # Try to get configuration for logging setup
+        config = get_config_safe()
+        setup_logging(config)
+    except Exception:
+        # Fall back to environment-based setup if config is not available
+        setup_logging(None)
+
+
 def handle_debug_mode() -> None:
     """Configure debug mode based on environment variable."""
     if os.getenv("PMKIT_DEBUG"):
         # Enable debug mode - more verbose output and tracebacks
         console.info("Debug mode enabled", emoji=True)
+        # Re-initialize logging with debug level if config is available
+        try:
+            config = get_config_safe() 
+            if config:
+                config.app.debug = True
+                setup_logging(config)
+        except Exception:
+            pass
 
 
 def global_exception_handler(exc_type: type, exc_value: Exception, exc_tb: Any) -> None:
     """
-    Global exception handler with beautiful error formatting.
+    Global exception handler with beautiful error formatting and logging.
     
     Args:
         exc_type: Exception type
         exc_value: Exception instance
         exc_tb: Exception traceback
     """
+    # Get logger for exception handling
+    logger = get_logger(__name__)
+    
     if isinstance(exc_value, KeyboardInterrupt):
+        logger.info("Application interrupted by user")
         console.print("\n👋 Goodbye!")
         sys.exit(0)
     
@@ -72,6 +97,15 @@ def global_exception_handler(exc_type: type, exc_value: Exception, exc_tb: Any) 
     # Format the error beautifully
     error_title = f"Unexpected Error: {exc_type.__name__}"
     error_message = str(exc_value) if str(exc_value) else "An unexpected error occurred"
+    
+    # Log the exception with full context
+    logger.exception(
+        f"Uncaught exception: {error_title}",
+        extra={
+            'error_type': exc_type.__name__,
+            'error_message': error_message,
+        }
+    )
     
     console.error(f"{error_title}: {error_message}")
     
@@ -101,17 +135,31 @@ def main(
     Make PRDs, roadmaps, OKRs, personas, and release notes live in Git,
     flow through review gates like code, and publish to Confluence/Notion.
     """
+    # Initialize logging early
+    initialize_logging()
+    logger = get_logger(__name__)
+    
+    logger.debug("PM-Kit CLI started", extra={
+        'version': __version__,
+        'debug': debug,
+        'command': ctx.invoked_subcommand,
+        'args': sys.argv[1:],
+    })
+    
     if version:
+        logger.debug("Version requested")
         console.print(f"PM-Kit version [bold primary]{__version__}[/bold primary]")
         raise typer.Exit()
     
     if debug:
         os.environ["PMKIT_DEBUG"] = "1"
+        logger.debug("Debug mode enabled via CLI flag")
     
     handle_debug_mode()
     
     # If no subcommand was invoked and no options, show help
     if ctx.invoked_subcommand is None and not version:
+        logger.debug("No subcommand provided, showing help")
         console.print(ctx.get_help(), color_system="auto")
 
 
@@ -122,15 +170,31 @@ def init_command(
     ),
 ) -> None:
     """🏗️ Initialize PM-Kit in current directory."""
-    from pmkit.cli.commands.init import init_pmkit
-    init_pmkit(force=force)
+    logger = get_logger(__name__)
+    logger.info("Initializing PM-Kit", extra={'force': force})
+    
+    try:
+        from pmkit.cli.commands.init import init_pmkit
+        init_pmkit(force=force)
+        logger.success("PM-Kit initialization completed")
+    except Exception as e:
+        logger.error(f"PM-Kit initialization failed: {e}")
+        raise
 
 
 @app.command("status")
 def status_command() -> None:
     """📊 Check PM-Kit context and project status."""
-    from pmkit.cli.commands.status import check_status
-    check_status()
+    logger = get_logger(__name__)
+    logger.info("Checking PM-Kit status")
+    
+    try:
+        from pmkit.cli.commands.status import check_status
+        check_status()
+        logger.debug("Status check completed")
+    except Exception as e:
+        logger.error(f"Status check failed: {e}")
+        raise
 
 
 @new_app.command("prd")
@@ -148,8 +212,19 @@ def new_prd_command(
     ),
 ) -> None:
     """📋 Create a new Product Requirements Document (PRD)."""
-    from pmkit.cli.commands.new import create_prd
-    create_prd(title=title, template=template)
+    logger = get_logger(__name__)
+    logger.info("Creating new PRD", extra={
+        'title': title,
+        'template': template
+    })
+    
+    try:
+        from pmkit.cli.commands.new import create_prd
+        create_prd(title=title, template=template)
+        logger.success("PRD creation completed", extra={'title': title})
+    except Exception as e:
+        logger.error(f"PRD creation failed: {e}", extra={'title': title})
+        raise
 
 
 @app.command("run")
@@ -225,9 +300,25 @@ def setup_exception_handling() -> None:
 
 
 def cli_main() -> None:
-    """Main CLI entry point with exception handling."""
+    """Main CLI entry point with exception handling and logging."""
+    # Initialize logging first thing
+    initialize_logging()
+    logger = get_logger(__name__)
+    
+    logger.debug("Starting PM-Kit CLI", extra={
+        'python_version': sys.version,
+        'argv': sys.argv,
+    })
+    
     setup_exception_handling()
-    app()
+    
+    try:
+        app()
+    except Exception as e:
+        logger.critical(f"Critical error in CLI main: {e}")
+        raise
+    finally:
+        logger.debug("PM-Kit CLI session ended")
 
 
 if __name__ == "__main__":
