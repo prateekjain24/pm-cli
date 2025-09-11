@@ -25,7 +25,7 @@ AF = TypeVar('AF', bound=Callable[..., Any])
 # Context variables for request tracing
 _request_id: ContextVar[Optional[str]] = ContextVar('request_id', default=None)
 _operation_context: ContextVar[Optional[str]] = ContextVar('operation_context', default=None)
-_trace_data: ContextVar[Dict[str, Any]] = ContextVar('trace_data', default_factory=dict)
+_trace_data: ContextVar[Optional[Dict[str, Any]]] = ContextVar('trace_data', default=None)
 
 # Module logger
 logger = get_logger(__name__)
@@ -68,7 +68,8 @@ def get_trace_data() -> Dict[str, Any]:
     Returns:
         Dictionary of trace data for the current context
     """
-    return _trace_data.get().copy()
+    trace_data = _trace_data.get()
+    return trace_data.copy() if trace_data is not None else {}
 
 
 def set_trace_data(**data: Any) -> None:
@@ -78,7 +79,11 @@ def set_trace_data(**data: Any) -> None:
     Args:
         **data: Key-value pairs to add to trace data
     """
-    current_data = _trace_data.get().copy()
+    current_data = _trace_data.get()
+    if current_data is not None:
+        current_data = current_data.copy()
+    else:
+        current_data = {}
     current_data.update(data)
     _trace_data.set(current_data)
 

@@ -20,22 +20,23 @@ from rich.console import Console
 from rich.highlighter import Highlighter
 from rich.text import Text
 
-from pmkit.cli.theme import SUCCESS, WARNING, ERROR, INFO, MUTED
-
 if TYPE_CHECKING:
     from pmkit.config.models import Config
 
 
-# Color mapping for different log levels
-LOG_LEVEL_COLORS = {
-    "TRACE": MUTED,
-    "DEBUG": MUTED, 
-    "INFO": INFO,
-    "SUCCESS": SUCCESS,
-    "WARNING": WARNING,
-    "ERROR": ERROR,
-    "CRITICAL": ERROR,
-}
+def _get_log_level_colors() -> Dict[str, str]:
+    """Get log level colors with lazy import to avoid circular dependency."""
+    from pmkit.cli.theme import SUCCESS, WARNING, ERROR, INFO, MUTED
+    
+    return {
+        "TRACE": MUTED,
+        "DEBUG": MUTED, 
+        "INFO": INFO,
+        "SUCCESS": SUCCESS,
+        "WARNING": WARNING,
+        "ERROR": ERROR,
+        "CRITICAL": ERROR,
+    }
 
 # Sensitive data patterns to filter from logs
 SENSITIVE_PATTERNS = [
@@ -56,11 +57,17 @@ class RichLogHighlighter(Highlighter):
         # Get the log level from the text (assuming format: "LEVEL | message")
         plain_text = text.plain
         
+        # Get colors with lazy import
+        log_level_colors = _get_log_level_colors()
+        
         # Highlight log levels
-        for level, color in LOG_LEVEL_COLORS.items():
+        for level, color in log_level_colors.items():
             if plain_text.startswith(level):
                 text.stylize(f"bold {color}", 0, len(level))
                 break
+        
+        # Get individual colors for patterns
+        from pmkit.cli.theme import SUCCESS, WARNING, ERROR, INFO, MUTED
         
         # Highlight common patterns
         text.highlight_regex(r'\b(ERROR|FAILED|EXCEPTION)\b', f"bold {ERROR}")
@@ -143,7 +150,10 @@ def console_formatter(record: Dict[str, Any]) -> str:
     Returns:
         Formatted string for console display
     """
-    level_color = LOG_LEVEL_COLORS.get(record['level'].name, INFO)
+    # Get colors with lazy import
+    from pmkit.cli.theme import INFO
+    log_level_colors = _get_log_level_colors()
+    level_color = log_level_colors.get(record['level'].name, INFO)
     
     # Format timestamp
     time_str = record['time'].strftime('%H:%M:%S')

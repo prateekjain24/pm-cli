@@ -15,8 +15,6 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
 from rich.text import Text
 
-from pmkit.cli.theme import pmkit_theme
-
 
 class PMKitConsole:
     """
@@ -30,11 +28,14 @@ class PMKitConsole:
     def __new__(cls) -> PMKitConsole:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._initialize()
+            cls._instance._console = None  # Initialize as None, will be lazy-loaded
         return cls._instance
     
     def _initialize(self) -> None:
         """Initialize the Rich console with PM-Kit theme."""
+        # Lazy import to avoid circular dependency
+        from pmkit.cli.theme import pmkit_theme
+        
         # Respect NO_COLOR environment variable
         force_terminal = None
         if os.getenv("PMKIT_DEBUG"):
@@ -49,31 +50,33 @@ class PMKitConsole:
     @property
     def console(self) -> Console:
         """Access to the underlying Rich console."""
+        if self._console is None:
+            self._initialize()
         return self._console
     
     def print(self, *args: Any, **kwargs: Any) -> None:
         """Print with themed console."""
-        self._console.print(*args, **kwargs)
+        self.console.print(*args, **kwargs)
     
     def success(self, message: str, emoji: bool = True) -> None:
         """Print a success message with consistent styling."""
         prefix = "✅ " if emoji else ""
-        self._console.print(f"{prefix}{message}", style="success.text")
+        self.console.print(f"{prefix}{message}", style="success.text")
     
     def error(self, message: str, emoji: bool = True) -> None:
         """Print an error message with consistent styling."""
         prefix = "❌ " if emoji else ""
-        self._console.print(f"{prefix}{message}", style="error.text")
+        self.console.print(f"{prefix}{message}", style="error.text")
     
     def warning(self, message: str, emoji: bool = True) -> None:
         """Print a warning message with consistent styling."""
         prefix = "⚠️  " if emoji else ""
-        self._console.print(f"{prefix}{message}", style="warning.text")
+        self.console.print(f"{prefix}{message}", style="warning.text")
     
     def info(self, message: str, emoji: bool = True) -> None:
         """Print an info message with consistent styling."""
         prefix = "ℹ️  " if emoji else ""
-        self._console.print(f"{prefix}{message}", style="info.text")
+        self.console.print(f"{prefix}{message}", style="info.text")
     
     def status_panel(
         self,
@@ -100,7 +103,7 @@ class PMKitConsole:
             border_style=f"{status}.text" if status != "info" else "panel.border",
             padding=(1, 2),
         )
-        self._console.print(panel)
+        self.console.print(panel)
     
     def create_progress(self, description: str = "Working...") -> Progress:
         """
@@ -118,7 +121,7 @@ class PMKitConsole:
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TimeRemainingColumn(),
-            console=self._console,
+            console=self.console,
         )
     
     def command_help_panel(
@@ -150,11 +153,11 @@ class PMKitConsole:
             border_style="panel.border",
             padding=(1, 2),
         )
-        self._console.print(panel)
+        self.console.print(panel)
     
     def clear(self) -> None:
         """Clear the console screen."""
-        self._console.clear()
+        self.console.clear()
 
 
 # Global console instance
