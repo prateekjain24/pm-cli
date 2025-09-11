@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -24,11 +24,11 @@ classifiers = [
 
 dependencies = [
     # CLI Framework
-    "typer>=0.17.4",
+    "typer[all]>=0.17.4",
     "rich>=14.1.0",
     "prompt_toolkit>=3.0.52",
     
-    # Configuration
+    # Configuration & Data Models
     "pyyaml>=6.0.2",
     "pydantic>=2.11.7",
     "python-dotenv>=1.1.1",
@@ -36,7 +36,7 @@ dependencies = [
     # LLM SDKs (Latest 2025 versions)
     "anthropic>=0.67.0",
     "openai>=1.107.1",
-    "google-genai>=1.35.0",
+    "google-genai>=1.35.0",  # Latest Google GenAI SDK
     "ollama>=0.5.3",
     
     # External Integrations
@@ -47,9 +47,12 @@ dependencies = [
     "httpx>=0.28.1",
     "websockets>=15.0.1",
     "aiofiles>=24.1.0",
+    "tenacity>=8.2.3",  # For retry logic
     
     # Utilities
-    "click>=8.2.1",  # For advanced CLI features
+    "loguru>=0.7.2",  # Structured logging
+    "diskcache>=5.6.3",  # Disk-based caching
+    "tiktoken>=0.5.2",  # Token counting for OpenAI
     "jinja2>=3.1.6",  # For template rendering
     "markdown2>=2.5.4",  # For markdown processing
 ]
@@ -61,6 +64,8 @@ dev = [
     "mypy>=1.17.1",
     "pre-commit>=4.3.0",
     "ipython>=9.5.0",
+    "types-pyyaml>=6.0.12",
+    "types-requests>=2.31.0",
 ]
 
 test = [
@@ -68,7 +73,11 @@ test = [
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.0",
+    "pytest-timeout>=2.2.0",
     "faker>=37.6.0",
+    "freezegun>=1.4.0",
+    "responses>=0.24.0",
+    "aioresponses>=0.7.6",
 ]
 
 docs = [
@@ -91,21 +100,23 @@ pm = "pmkit.cli:app"
 "Source" = "https://github.com/yourusername/pmkit"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["pmkit*"]
 exclude = ["tests*", "docs*"]
 
 [tool.setuptools.package-data]
 pmkit = [
+    "py.typed",
     "templates/**/*.yaml",
     "templates/**/*.md",
     "config/*.yaml",
+    "data/**/*",
 ]
 
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ["py311"]
-include = '\.pyi?
+include = '\.pyi?$'
 extend-exclude = '''
 /(
   # directories
@@ -115,13 +126,16 @@ extend-exclude = '''
   | \.mypy_cache
   | \.tox
   | \.venv
+  | _build
+  | buck-out
   | build
   | dist
+  | migrations
 )/
 '''
 
 [tool.ruff]
-line-length = 88
+line-length = 100
 target-version = "py311"
 select = [
     "E",    # pycodestyle errors
@@ -148,34 +162,62 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.11"
+strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-disallow_any_unimported = false
-no_implicit_optional = true
+disallow_any_generics = true
 check_untyped_defs = true
+no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 follow_imports = "normal"
+namespace_packages = true
+show_error_codes = true
+show_error_context = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+    "loguru",
+    "diskcache",
+    "tenacity",
+    "tiktoken",
+    "google.genai",
+    "ollama",
+    "atlassian",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "--verbose",
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
     "--cov=pmkit",
-    "--cov-report=term-missing",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
     "--cov-report=xml",
+    "--cov-fail-under=80",
 ]
 asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
 
 [tool.coverage.run]
-source = ["pmkit"]
+source = ["src/pmkit"]
+branch = true
+parallel = true
 omit = [
     "*/tests/*",
     "*/test_*.py",
