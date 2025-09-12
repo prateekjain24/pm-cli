@@ -113,6 +113,14 @@ All notable changes to PM-Kit are documented in this file.
 - Added comprehensive tests for streaming, token counting, and cost estimation
 - All 218 tests passing with new functionality integrated
 
+#### PMKIT-012: Create in-memory cache for searches
+- Implemented SearchCache with TTL support (24 hours default)
+- Added SHA256-based cache key generation for deterministic caching
+- Created LRU eviction when cache size exceeds limit (100 items default)
+- Added comprehensive cache hit/miss metrics tracking
+- Built memory-efficient dual-layer caching (in-memory + disk)
+- 5 comprehensive cache tests passing covering all cache scenarios
+
 #### PMKIT-013: Add enhanced retry logic for OpenAI calls
 - Added APIConnectionError to retry exceptions for better network resilience
 - Implemented retry logic on validate_api_key with 2 attempts and 10s timeout
@@ -122,3 +130,13 @@ All notable changes to PM-Kit are documented in this file.
 - Verified AuthenticationError does NOT trigger retry (as expected)
 - All retry attempts are properly logged with tenacity
 - 26 OpenAI client tests passing with complete retry coverage
+
+#### PMKIT-014: Write OpenAI integration tests
+- Created comprehensive test suite with 26 tests for OpenAI client
+- Tests cover search functionality with mocks
+- Verified retry behavior with exponential backoff (rate limit, connection, timeout)
+- Added cache hit/miss scenario tests (5 cache-specific tests)
+- Validated error handling for authentication, timeout, and rate limit errors
+- Implemented proper mocking for OpenAI API responses and streaming
+- All tests passing with 100% coverage of integration scenarios
+- Total project test count: 221 tests
