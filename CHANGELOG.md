@@ -95,3 +95,20 @@ All notable changes to PM-Kit are documented in this file.
 - Gemini: Now uses google-genai SDK with GoogleSearch() tool
 - Simplified caching strategy to rely on provider-native optimizations
 - Reduced abstraction layers for better performance and maintainability
+
+## [0.3.0] - 2025-01-12
+
+### Added
+
+#### PMKIT-011: Add OpenAI chat completion wrapper with streaming and token counting
+- Implemented streaming chat completions with real-time token updates via `chat_completion_stream()`
+- Added native token usage tracking with `stream_options={"include_usage": true}` support
+- Integrated tiktoken library for accurate token counting with GPT-5 models
+- Added `count_tokens()` method using o200k_base encoding for GPT-5
+- Implemented `count_messages_tokens()` with message structure overhead accounting
+- Created `estimate_tokens_before_call()` for pre-flight cost estimation
+- Added StreamingChunk model for incremental streaming responses
+- Added TokenEstimate model with cost formatting and context window validation
+- Implemented proper streaming error handling and retry logic
+- Added comprehensive tests for streaming, token counting, and cost estimation
+- All 218 tests passing with new functionality integrated

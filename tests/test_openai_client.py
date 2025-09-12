@@ -426,3 +426,253 @@ class TestOpenAIClient:
         
         # GPT-5 pricing: (1000/1000 * 0.00125) + (2000/1000 * 0.01) = 0.00125 + 0.02 = 0.02125
         assert usage.estimated_cost == 0.02125
+    
+    @pytest.mark.asyncio
+    async def test_chat_completion_stream_success(self, mock_config):
+        """Test successful streaming chat completion."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        messages = [
+            ChatMessage(role=MessageRole.USER, content="Tell me a story"),
+        ]
+        
+        # Create mock streaming chunks
+        async def mock_stream():
+            # First chunk with content
+            chunk1 = MagicMock()
+            chunk1.id = "stream-1"
+            chunk1.model = "gpt-5"
+            chunk1.created = 1234567890
+            chunk1.choices = [MagicMock()]
+            chunk1.choices[0].delta.content = "Once upon"
+            chunk1.choices[0].delta.tool_calls = None
+            chunk1.choices[0].finish_reason = None
+            yield chunk1
+            
+            # Second chunk with more content
+            chunk2 = MagicMock()
+            chunk2.id = "stream-1"
+            chunk2.model = "gpt-5"
+            chunk2.created = 1234567890
+            chunk2.choices = [MagicMock()]
+            chunk2.choices[0].delta.content = " a time"
+            chunk2.choices[0].delta.tool_calls = None
+            chunk2.choices[0].finish_reason = None
+            yield chunk2
+            
+            # Final chunk with usage
+            chunk3 = MagicMock()
+            chunk3.id = "stream-1"
+            chunk3.model = "gpt-5"
+            chunk3.created = 1234567890
+            chunk3.choices = [MagicMock()]
+            chunk3.choices[0].delta.content = None
+            chunk3.choices[0].delta.tool_calls = None
+            chunk3.choices[0].finish_reason = "stop"
+            chunk3.usage = MagicMock(
+                prompt_tokens=10,
+                completion_tokens=5,
+                total_tokens=15
+            )
+            yield chunk3
+        
+        with patch.object(
+            client.client.chat.completions,
+            'create',
+            new_callable=AsyncMock
+        ) as mock_create:
+            mock_create.return_value = mock_stream()
+            
+            chunks = []
+            async for chunk in client.chat_completion_stream(messages):
+                chunks.append(chunk)
+            
+            assert len(chunks) == 3
+            assert chunks[0].content == "Once upon"
+            assert chunks[1].content == " a time"
+            assert chunks[2].finish_reason == "stop"
+            assert chunks[2].is_final
+            assert chunks[2].usage.total_tokens == 15
+    
+    def test_count_tokens(self, mock_config):
+        """Test token counting with tiktoken."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        # Test basic text
+        text = "Hello, world!"
+        token_count = client.count_tokens(text)
+        assert token_count > 0
+        assert token_count < 10  # Short text should have few tokens
+        
+        # Test with GPT-5 model
+        token_count_gpt5 = client.count_tokens(text, model="gpt-5")
+        assert token_count_gpt5 > 0
+        
+        # Test with GPT-5 mini
+        token_count_mini = client.count_tokens(text, model="gpt-5-mini")
+        assert token_count_mini > 0
+    
+    def test_count_messages_tokens(self, mock_config):
+        """Test token counting for messages."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        messages = [
+            ChatMessage(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
+            ChatMessage(role=MessageRole.USER, content="Hello!"),
+            ChatMessage(role=MessageRole.ASSISTANT, content="Hi there!"),
+        ]
+        
+        token_count = client.count_messages_tokens(messages)
+        assert token_count > 0
+        # Should include message overhead
+        assert token_count > client.count_tokens("You are a helpful assistant.Hello!Hi there!")
+        
+        # Test with dict format
+        dict_messages = [
+            {"role": "user", "content": "Test message"}
+        ]
+        dict_token_count = client.count_messages_tokens(dict_messages)
+        assert dict_token_count > 0
+    
+    def test_estimate_tokens_before_call(self, mock_config):
+        """Test pre-call token and cost estimation."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        messages = [
+            ChatMessage(role=MessageRole.USER, content="Write a short story about a robot."),
+        ]
+        
+        # Test with default model (gpt-5)
+        estimate = client.estimate_tokens_before_call(messages)
+        
+        assert estimate.tokens > 0
+        assert estimate.estimated_cost > 0
+        assert estimate.fits_context is True  # Short message should fit
+        assert estimate.context_window == 272000  # GPT-5 context window
+        
+        # Test cost formatting
+        cost_str = estimate.format_cost()
+        assert cost_str.startswith("$")
+        
+        # Test with specified max completion tokens
+        estimate_with_max = client.estimate_tokens_before_call(
+            messages, 
+            max_completion_tokens=1000
+        )
+        assert estimate_with_max.tokens > estimate.tokens  # Should be higher with explicit max
+        
+        # Test with different models
+        estimate_nano = client.estimate_tokens_before_call(
+            messages,
+            model="gpt-5-nano"
+        )
+        assert estimate_nano.estimated_cost < estimate.estimated_cost  # Nano is cheaper
+        
+        estimate_mini = client.estimate_tokens_before_call(
+            messages,
+            model="gpt-5-mini"
+        )
+        assert estimate_mini.estimated_cost < estimate.estimated_cost  # Mini is cheaper
+        assert estimate_mini.estimated_cost > estimate_nano.estimated_cost  # But more than nano
+    
+    def test_get_model_info(self, mock_config):
+        """Test model info retrieval."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        # Test GPT-5 models
+        gpt5_info = client._get_model_info("gpt-5")
+        assert gpt5_info["input_price"] == 1.25
+        assert gpt5_info["output_price"] == 10.00
+        assert gpt5_info["context_window"] == 272000
+        
+        gpt5_mini_info = client._get_model_info("gpt-5-mini")
+        assert gpt5_mini_info["input_price"] == 0.25
+        assert gpt5_mini_info["output_price"] == 2.00
+        
+        gpt5_nano_info = client._get_model_info("gpt-5-nano")
+        assert gpt5_nano_info["input_price"] == 0.05
+        assert gpt5_nano_info["output_price"] == 0.40
+        
+        # Test unknown model (defaults to GPT-4)
+        unknown_info = client._get_model_info("unknown-model")
+        assert unknown_info["input_price"] == 10.00
+        assert unknown_info["output_price"] == 30.00
+        assert unknown_info["context_window"] == 128000
+    
+    @pytest.mark.asyncio
+    async def test_streaming_with_tool_calls(self, mock_config):
+        """Test streaming with tool calls."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        messages = [ChatMessage(role=MessageRole.USER, content="Get weather")]
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get weather info"
+            }
+        }]
+        
+        # Create mock streaming chunks with tool calls
+        async def mock_stream():
+            chunk = MagicMock()
+            chunk.id = "stream-1"
+            chunk.model = "gpt-5"
+            chunk.created = 1234567890
+            chunk.choices = [MagicMock()]
+            chunk.choices[0].delta.content = None
+            
+            # Mock tool call
+            mock_tool_call = MagicMock()
+            mock_tool_call.id = "call_123"
+            mock_tool_call.type = "function"
+            mock_tool_call.function = MagicMock()
+            mock_tool_call.function.name = "get_weather"
+            mock_tool_call.function.arguments = '{"location": "NYC"}'
+            
+            chunk.choices[0].delta.tool_calls = [mock_tool_call]
+            chunk.choices[0].finish_reason = "tool_calls"
+            yield chunk
+        
+        with patch.object(
+            client.client.chat.completions,
+            'create',
+            new_callable=AsyncMock
+        ) as mock_create:
+            mock_create.return_value = mock_stream()
+            
+            chunks = []
+            async for chunk in client.chat_completion_stream(messages, tools=tools):
+                chunks.append(chunk)
+            
+            assert len(chunks) == 1
+            assert chunks[0].tool_calls is not None
+            assert chunks[0].tool_calls[0].function["name"] == "get_weather"
+    
+    def test_token_estimate_formatting(self):
+        """Test TokenEstimate cost formatting."""
+        from pmkit.llm.models import TokenEstimate
+        
+        # Test very small cost (< $0.01)
+        estimate1 = TokenEstimate(
+            tokens=100,
+            estimated_cost=0.000125,
+            fits_context=True
+        )
+        assert estimate1.format_cost() == "$0.000125"
+        
+        # Test small cost (< $1)
+        estimate2 = TokenEstimate(
+            tokens=10000,
+            estimated_cost=0.125,
+            fits_context=True
+        )
+        assert estimate2.format_cost() == "$0.1250"
+        
+        # Test larger cost (>= $1)
+        estimate3 = TokenEstimate(
+            tokens=1000000,
+            estimated_cost=12.50,
+            fits_context=True
+        )
+        assert estimate3.format_cost() == "$12.50"
