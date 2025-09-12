@@ -40,15 +40,15 @@ class LLMProviderConfig(BaseModel):
         # Get provider from the same validation context
         provider = info.data.get('provider', 'openai')
         
-        # Default models per provider (latest as of 2025)
+        # Default models per provider (latest as of August 2025)
         defaults = {
-            'openai': 'gpt-4-turbo-preview',
+            'openai': 'gpt-5',  # GPT-5 launched August 7, 2025
             'anthropic': 'claude-3-5-sonnet-20241022',
             'gemini': 'gemini-2.0-flash-exp',
             'ollama': 'llama3.2:latest',
         }
         
-        return defaults.get(provider, 'gpt-4-turbo-preview')
+        return defaults.get(provider, 'gpt-5')
     
     @field_validator('api_key')
     @classmethod
