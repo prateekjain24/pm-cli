@@ -329,31 +329,65 @@ class OpenAIClient:
         query: str,
         model: Optional[str] = None,
         use_cache: bool = True,
+        search_options: Optional[Dict[str, Any]] = None,
     ) -> SearchResult:
         """
-        Perform web search using OpenAI's tools API.
+        Perform web search using OpenAI's GPT-5 web search capabilities.
         
-        Note: This is a placeholder for future implementation when
-        OpenAI's web search tools become available in the SDK.
+        This method now delegates to the modular search provider system
+        for better extensibility and caching.
         
         Args:
             query: Search query
-            model: Model to use for search
+            model: Model to use for search (defaults to config model)
             use_cache: Whether to use cached results
+            search_options: Additional search options (depth, domains, etc.)
             
         Returns:
             SearchResult object
         """
-        # For MVP, return a placeholder result
-        # This will be implemented when OpenAI releases web search tools
-        logger.warning("Web search not yet implemented in OpenAI SDK")
+        # Use GroundingAdapter for modular search
+        from pmkit.llm.grounding import GroundingAdapter
+        from pmkit.llm.search.base import SearchOptions, SearchDepth
         
-        return SearchResult(
-            content="",
-            citations=[],
-            query=query,
-            cached=False,
+        # Create search options
+        options = None
+        if search_options:
+            options = SearchOptions(
+                depth=SearchDepth(search_options.get("depth", "medium")),
+                allowed_domains=search_options.get("allowed_domains"),
+                blocked_domains=search_options.get("blocked_domains"),
+                max_results=search_options.get("max_results", 10),
+                timeout=search_options.get("timeout", 30.0),
+                include_citations=search_options.get("include_citations", True),
+            )
+        
+        # Create adapter with current config
+        adapter = GroundingAdapter(
+            config=self.config,
+            cache_enabled=use_cache,
         )
+        
+        try:
+            # Perform search
+            result = await adapter.search(query, options, use_cache=use_cache)
+            
+            logger.debug(
+                f"Search completed for: {query[:50]}... "
+                f"(cached: {result.cached}, citations: {len(result.citations)})"
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            # Return empty result as fallback
+            return SearchResult(
+                content="",
+                citations=[],
+                query=query,
+                cached=False,
+            )
     
     async def close(self) -> None:
         """Close the HTTP client and cleanup resources."""

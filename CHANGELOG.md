@@ -53,3 +53,36 @@ All notable changes to PM-Kit are documented in this file.
 - Created 179 tests covering all modules
 - Added mock factories for testing
 - Achieved 100% test pass rate
+
+## [0.2.0] - 2025-01-12
+
+### Added
+
+#### PMKIT-009: Create OpenAI client wrapper
+- Implemented async OpenAI client with GPT-5 support
+- Added connection pooling with httpx (25 keepalive, 100 max connections)
+- Integrated rate limiting with semaphore (10 concurrent requests)
+- Built retry logic with exponential backoff
+- Added API key validation on initialization
+- Implemented proper error handling with custom exceptions
+- Created comprehensive test suite with 16 passing tests
+
+#### PMKIT-010: Implement OpenAI web search method
+- Created modular search system with GroundingAdapter pattern
+- Built multi-level caching (L1 memory, L2 disk) with SHA256 keys
+- Implemented BaseSearchProvider for extensibility
+- Added OpenAI search provider with GPT-5 Responses API support
+- Created comprehensive extension guide with examples for future providers
+- Added domain filtering and reasoning level configuration
+- Implemented graceful degradation when search unavailable
+- Built SearchCache with TTL support and LRU eviction
+
+### Updated
+
+#### GPT-5 Model Support
+- Updated all model constants to GPT-5 variants (standard, mini, nano, thinking)
+- Changed default model from GPT-4 to GPT-5
+- Updated pricing: $1.25/1M input, $10/1M output tokens
+- Added support for 272K input tokens and 128K output tokens
+- Implemented 90% cache discount for recently used tokens
+- Updated cost estimation with higher precision (6 decimal places)

@@ -220,3 +220,4 @@ If cache isn't invalidating properly:
 - over engineering is an enemy of value delivery
 - always update the CHANGELOG.md after finishing work. Commit after testing.
 - never cheat on tests and make them pass by rewriting the tests or writing the test in a way it always passes.
+- latest Openai model is GPT-5 that was released in August 2025
