@@ -112,3 +112,13 @@ All notable changes to PM-Kit are documented in this file.
 - Implemented proper streaming error handling and retry logic
 - Added comprehensive tests for streaming, token counting, and cost estimation
 - All 218 tests passing with new functionality integrated
+
+#### PMKIT-013: Add enhanced retry logic for OpenAI calls
+- Added APIConnectionError to retry exceptions for better network resilience
+- Implemented retry logic on validate_api_key with 2 attempts and 10s timeout
+- Added 60-second timeout to streaming chat completions for long-running streams
+- Enhanced error handling to properly catch and retry on network issues
+- Added comprehensive tests for APIConnectionError retry behavior
+- Verified AuthenticationError does NOT trigger retry (as expected)
+- All retry attempts are properly logged with tenacity
+- 26 OpenAI client tests passing with complete retry coverage

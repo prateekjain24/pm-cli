@@ -11,7 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from openai import AuthenticationError, RateLimitError, APITimeoutError
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    RateLimitError,
+)
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice as OpenAIChoice
 from openai.types.completion_usage import CompletionUsage
@@ -676,3 +681,88 @@ class TestOpenAIClient:
             fits_context=True
         )
         assert estimate3.format_cost() == "$12.50"
+    
+    @pytest.mark.asyncio
+    async def test_chat_completion_connection_error_retry(self, mock_config):
+        """Test that APIConnectionError triggers retry."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        messages = [ChatMessage(role=MessageRole.USER, content="Hello")]
+        
+        # Mock to fail once with connection error, then succeed
+        call_count = 0
+        async def mock_create_with_connection_error(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise APIConnectionError(request=MagicMock())
+            return MagicMock(
+                id="test-id",
+                model="gpt-5",
+                created=1234567890,
+                choices=[MagicMock(
+                    index=0,
+                    message=MagicMock(
+                        role="assistant",
+                        content="Success after connection retry",
+                        tool_calls=None
+                    ),
+                    finish_reason="stop",
+                )],
+                usage=MagicMock(
+                    prompt_tokens=10,
+                    completion_tokens=20,
+                    total_tokens=30,
+                ),
+            )
+        
+        with patch.object(
+            client.client.chat.completions,
+            'create',
+            new=mock_create_with_connection_error
+        ):
+            response = await client.chat_completion(messages)
+            assert response.content == "Success after connection retry"
+            assert call_count == 2  # First call failed, second succeeded
+    
+    @pytest.mark.asyncio
+    async def test_validate_api_key_retry(self, mock_config):
+        """Test that validate_api_key retries on network errors."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        # Mock to fail once with connection error, then succeed
+        call_count = 0
+        async def mock_models_list():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise APIConnectionError(request=MagicMock())
+            return MagicMock()  # Successful response
+        
+        with patch.object(client.client.models, 'list', new=mock_models_list):
+            result = await client.validate_api_key()
+            assert result is True
+            assert client._validated is True
+            assert call_count == 2  # First call failed, second succeeded
+    
+    @pytest.mark.asyncio
+    async def test_validate_api_key_no_retry_on_auth_error(self, mock_config):
+        """Test that validate_api_key does NOT retry on AuthenticationError."""
+        client = OpenAIClient(mock_config, validate_on_init=False)
+        
+        call_count = 0
+        async def mock_models_list_auth_error():
+            nonlocal call_count
+            call_count += 1
+            raise AuthenticationError(
+                "Invalid API key",
+                response=MagicMock(status_code=401),
+                body={"error": {"message": "Invalid API key"}}
+            )
+        
+        with patch.object(client.client.models, 'list', new=mock_models_list_auth_error):
+            with pytest.raises(LLMError) as exc_info:
+                await client.validate_api_key()
+            
+            assert "Invalid OpenAI API key" in str(exc_info.value)
+            assert call_count == 1  # Should not retry on auth error

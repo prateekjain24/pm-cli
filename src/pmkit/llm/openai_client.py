@@ -13,7 +13,13 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
 import tiktoken
-from openai import AsyncOpenAI, AuthenticationError, RateLimitError, APITimeoutError
+from openai import (
+    AsyncOpenAI,
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    RateLimitError,
+)
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import SecretStr
 
@@ -130,6 +136,11 @@ class OpenAIClient:
             suggestion="Set OPENAI_API_KEY in environment or .env file"
         )
     
+    @retry_with_backoff(
+        max_attempts=2,  # Fewer retries for validation
+        retry_on=(APITimeoutError, APIConnectionError, httpx.TimeoutException)
+    )
+    @timeout(10.0)  # Quick timeout for validation
     async def validate_api_key(self) -> bool:
         """
         Validate API key with a minimal API call.
@@ -148,11 +159,16 @@ class OpenAIClient:
             return True
             
         except AuthenticationError as e:
+            # Don't retry on auth errors - key is invalid
             raise LLMError(
                 f"Invalid OpenAI API key: {str(e)}",
                 provider="openai",
                 suggestion="Check your OPENAI_API_KEY is correct"
             )
+        except (APITimeoutError, APIConnectionError) as e:
+            # These will be retried by decorator
+            logger.warning(f"Network issue during API key validation: {e}")
+            raise
         except Exception as e:
             raise LLMError(
                 f"Failed to validate API key: {str(e)}",
@@ -171,7 +187,7 @@ class OpenAIClient:
     
     @retry_with_backoff(
         max_attempts=3,
-        retry_on=(RateLimitError, APITimeoutError, httpx.TimeoutException)
+        retry_on=(RateLimitError, APITimeoutError, APIConnectionError, httpx.TimeoutException)
     )
     @timeout(30.0)
     async def chat_completion(
@@ -256,6 +272,10 @@ class OpenAIClient:
                 logger.warning(f"API timeout: {e}")
                 raise  # Let retry decorator handle it
                 
+            except APIConnectionError as e:
+                logger.warning(f"Connection error: {e}")
+                raise  # Let retry decorator handle it
+                
             except AuthenticationError as e:
                 raise LLMError(
                     f"Authentication failed: {str(e)}",
@@ -272,8 +292,9 @@ class OpenAIClient:
     
     @retry_with_backoff(
         max_attempts=3,
-        retry_on=(RateLimitError, APITimeoutError, httpx.TimeoutException)
+        retry_on=(RateLimitError, APITimeoutError, APIConnectionError, httpx.TimeoutException)
     )
+    @timeout(60.0)  # Longer timeout for streaming
     async def chat_completion_stream(
         self,
         messages: List[Union[ChatMessage, Dict[str, str]]],
@@ -364,6 +385,10 @@ class OpenAIClient:
                 
             except APITimeoutError as e:
                 logger.warning(f"API timeout during streaming: {e}")
+                raise  # Let retry decorator handle it
+                
+            except APIConnectionError as e:
+                logger.warning(f"Connection error during streaming: {e}")
                 raise  # Let retry decorator handle it
                 
             except AuthenticationError as e:
