@@ -67,15 +67,15 @@ All notable changes to PM-Kit are documented in this file.
 - Implemented proper error handling with custom exceptions
 - Created comprehensive test suite with 16 passing tests
 
-#### PMKIT-010: Implement OpenAI web search method
-- Created modular search system with GroundingAdapter pattern
-- Built multi-level caching (L1 memory, L2 disk) with SHA256 keys
-- Implemented BaseSearchProvider for extensibility
-- Added OpenAI search provider with GPT-5 Responses API support
-- Created comprehensive extension guide with examples for future providers
-- Added domain filtering and reasoning level configuration
+#### PMKIT-010: Implement modular web search with native provider support
+- Created simplified GroundingAdapter as thin orchestrator for provider routing
+- Implemented OpenAISearchProvider using native Responses API with web_search_preview tool
+- Added GeminiSearchProvider using native Google Search grounding
+- Built simplified SearchCache with single-level caching and LRU eviction
+- Removed complex multi-level caching in favor of provider-native optimizations
+- Added comprehensive extension guide for future providers (Anthropic, Perplexity)
 - Implemented graceful degradation when search unavailable
-- Built SearchCache with TTL support and LRU eviction
+- Created test suite covering all search functionality (16 passing tests)
 
 ### Updated
 
@@ -86,3 +86,12 @@ All notable changes to PM-Kit are documented in this file.
 - Added support for 272K input tokens and 128K output tokens
 - Implemented 90% cache discount for recently used tokens
 - Updated cost estimation with higher precision (6 decimal places)
+
+### Refactored
+
+#### Native Search Integration
+- Refactored search providers to use native API capabilities instead of custom implementations
+- OpenAI: Now uses Responses API with web_search_preview tool
+- Gemini: Now uses google-genai SDK with GoogleSearch() tool
+- Simplified caching strategy to rely on provider-native optimizations
+- Reduced abstraction layers for better performance and maintainability

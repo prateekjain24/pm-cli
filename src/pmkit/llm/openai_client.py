@@ -328,29 +328,26 @@ class OpenAIClient:
         self,
         query: str,
         model: Optional[str] = None,
-        use_cache: bool = True,
         search_options: Optional[Dict[str, Any]] = None,
     ) -> SearchResult:
         """
-        Perform web search using OpenAI's GPT-5 web search capabilities.
+        Perform web search using OpenAI's native web search capabilities.
         
-        This method now delegates to the modular search provider system
-        for better extensibility and caching.
+        Uses the simplified GroundingAdapter for provider routing.
         
         Args:
             query: Search query
             model: Model to use for search (defaults to config model)
-            use_cache: Whether to use cached results
             search_options: Additional search options (depth, domains, etc.)
             
         Returns:
             SearchResult object
         """
-        # Use GroundingAdapter for modular search
+        # Use GroundingAdapter for provider routing
         from pmkit.llm.grounding import GroundingAdapter
         from pmkit.llm.search.base import SearchOptions, SearchDepth
         
-        # Create search options
+        # Create search options if provided
         options = None
         if search_options:
             options = SearchOptions(
@@ -363,18 +360,15 @@ class OpenAIClient:
             )
         
         # Create adapter with current config
-        adapter = GroundingAdapter(
-            config=self.config,
-            cache_enabled=use_cache,
-        )
+        adapter = GroundingAdapter(config=self.config)
         
         try:
             # Perform search
-            result = await adapter.search(query, options, use_cache=use_cache)
+            result = await adapter.search(query, options)
             
             logger.debug(
                 f"Search completed for: {query[:50]}... "
-                f"(cached: {result.cached}, citations: {len(result.citations)})"
+                f"(citations: {len(result.citations)})"
             )
             
             return result
