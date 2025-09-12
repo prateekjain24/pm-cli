@@ -70,7 +70,7 @@ Based on PHASE1.md and the PRD, here's the complete breakdown into 1 story point
 - Implement streaming and non-streaming modes
 - Add token counting with tiktoken
 - Support system/user/assistant messages
-- Handle model selection (gpt-4-turbo)
+- Handle model selection (gpt-5)
 
 ### PMKIT-012: Create in-memory cache for searches
 - Implement simple dict-based cache
