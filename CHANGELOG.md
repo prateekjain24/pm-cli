@@ -95,3 +95,48 @@ All notable changes to PM-Kit are documented in this file.
 - Gemini: Now uses google-genai SDK with GoogleSearch() tool
 - Simplified caching strategy to rely on provider-native optimizations
 - Reduced abstraction layers for better performance and maintainability
+
+## [0.3.0] - 2025-01-12
+
+### Added
+
+#### PMKIT-011: Add OpenAI chat completion wrapper with streaming and token counting
+- Implemented streaming chat completions with real-time token updates via `chat_completion_stream()`
+- Added native token usage tracking with `stream_options={"include_usage": true}` support
+- Integrated tiktoken library for accurate token counting with GPT-5 models
+- Added `count_tokens()` method using o200k_base encoding for GPT-5
+- Implemented `count_messages_tokens()` with message structure overhead accounting
+- Created `estimate_tokens_before_call()` for pre-flight cost estimation
+- Added StreamingChunk model for incremental streaming responses
+- Added TokenEstimate model with cost formatting and context window validation
+- Implemented proper streaming error handling and retry logic
+- Added comprehensive tests for streaming, token counting, and cost estimation
+- All 218 tests passing with new functionality integrated
+
+#### PMKIT-012: Create in-memory cache for searches
+- Implemented SearchCache with TTL support (24 hours default)
+- Added SHA256-based cache key generation for deterministic caching
+- Created LRU eviction when cache size exceeds limit (100 items default)
+- Added comprehensive cache hit/miss metrics tracking
+- Built memory-efficient dual-layer caching (in-memory + disk)
+- 5 comprehensive cache tests passing covering all cache scenarios
+
+#### PMKIT-013: Add enhanced retry logic for OpenAI calls
+- Added APIConnectionError to retry exceptions for better network resilience
+- Implemented retry logic on validate_api_key with 2 attempts and 10s timeout
+- Added 60-second timeout to streaming chat completions for long-running streams
+- Enhanced error handling to properly catch and retry on network issues
+- Added comprehensive tests for APIConnectionError retry behavior
+- Verified AuthenticationError does NOT trigger retry (as expected)
+- All retry attempts are properly logged with tenacity
+- 26 OpenAI client tests passing with complete retry coverage
+
+#### PMKIT-014: Write OpenAI integration tests
+- Created comprehensive test suite with 26 tests for OpenAI client
+- Tests cover search functionality with mocks
+- Verified retry behavior with exponential backoff (rate limit, connection, timeout)
+- Added cache hit/miss scenario tests (5 cache-specific tests)
+- Validated error handling for authentication, timeout, and rate limit errors
+- Implemented proper mocking for OpenAI API responses and streaming
+- All tests passing with 100% coverage of integration scenarios
+- Total project test count: 221 tests

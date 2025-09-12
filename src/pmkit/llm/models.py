@@ -147,6 +147,53 @@ class SearchResult(BaseModel):
         return bool(self.content and self.content.strip())
 
 
+class StreamingChunk(BaseModel):
+    """
+    Represents a single chunk in a streaming response.
+    
+    Used for real-time streaming of chat completions.
+    """
+    
+    model_config = ConfigDict(validate_assignment=True)
+    
+    id: str
+    model: str
+    created: datetime
+    content: Optional[str] = None
+    finish_reason: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
+    usage: Optional[Usage] = None  # Only present with stream_options={"include_usage": True}
+    
+    @property
+    def is_final(self) -> bool:
+        """Check if this is the final chunk with usage info."""
+        return self.usage is not None
+
+
+class TokenEstimate(BaseModel):
+    """
+    Pre-call token estimation for cost management.
+    
+    Helps users understand API costs before making calls.
+    """
+    
+    model_config = ConfigDict(validate_assignment=True)
+    
+    tokens: int = Field(description="Estimated token count")
+    estimated_cost: float = Field(description="Estimated cost in USD")
+    fits_context: bool = Field(description="Whether input fits in context window")
+    context_window: int = Field(default=272000, description="Model's context window size")
+    
+    def format_cost(self) -> str:
+        """Format cost for display."""
+        if self.estimated_cost < 0.01:
+            return f"${self.estimated_cost:.6f}"
+        elif self.estimated_cost < 1:
+            return f"${self.estimated_cost:.4f}"
+        else:
+            return f"${self.estimated_cost:.2f}"
+
+
 class ModelInfo(BaseModel):
     """Information about an available model."""
     

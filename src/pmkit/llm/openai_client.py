@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
-from openai import AsyncOpenAI, AuthenticationError, RateLimitError, APITimeoutError
-from openai.types.chat import ChatCompletion
+import tiktoken
+from openai import (
+    AsyncOpenAI,
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    RateLimitError,
+)
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import SecretStr
 
 from pmkit.config.models import LLMProviderConfig
@@ -24,6 +31,8 @@ from pmkit.llm.models import (
     CompletionResponse,
     MessageRole,
     SearchResult,
+    StreamingChunk,
+    TokenEstimate,
     ToolCall,
     Usage,
 )
@@ -127,6 +136,11 @@ class OpenAIClient:
             suggestion="Set OPENAI_API_KEY in environment or .env file"
         )
     
+    @retry_with_backoff(
+        max_attempts=2,  # Fewer retries for validation
+        retry_on=(APITimeoutError, APIConnectionError, httpx.TimeoutException)
+    )
+    @timeout(10.0)  # Quick timeout for validation
     async def validate_api_key(self) -> bool:
         """
         Validate API key with a minimal API call.
@@ -145,11 +159,16 @@ class OpenAIClient:
             return True
             
         except AuthenticationError as e:
+            # Don't retry on auth errors - key is invalid
             raise LLMError(
                 f"Invalid OpenAI API key: {str(e)}",
                 provider="openai",
                 suggestion="Check your OPENAI_API_KEY is correct"
             )
+        except (APITimeoutError, APIConnectionError) as e:
+            # These will be retried by decorator
+            logger.warning(f"Network issue during API key validation: {e}")
+            raise
         except Exception as e:
             raise LLMError(
                 f"Failed to validate API key: {str(e)}",
@@ -168,7 +187,7 @@ class OpenAIClient:
     
     @retry_with_backoff(
         max_attempts=3,
-        retry_on=(RateLimitError, APITimeoutError, httpx.TimeoutException)
+        retry_on=(RateLimitError, APITimeoutError, APIConnectionError, httpx.TimeoutException)
     )
     @timeout(30.0)
     async def chat_completion(
@@ -253,6 +272,10 @@ class OpenAIClient:
                 logger.warning(f"API timeout: {e}")
                 raise  # Let retry decorator handle it
                 
+            except APIConnectionError as e:
+                logger.warning(f"Connection error: {e}")
+                raise  # Let retry decorator handle it
+                
             except AuthenticationError as e:
                 raise LLMError(
                     f"Authentication failed: {str(e)}",
@@ -266,6 +289,334 @@ class OpenAIClient:
                     f"OpenAI API call failed: {str(e)}",
                     provider="openai"
                 )
+    
+    @retry_with_backoff(
+        max_attempts=3,
+        retry_on=(RateLimitError, APITimeoutError, APIConnectionError, httpx.TimeoutException)
+    )
+    @timeout(60.0)  # Longer timeout for streaming
+    async def chat_completion_stream(
+        self,
+        messages: List[Union[ChatMessage, Dict[str, str]]],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[StreamingChunk, None]:
+        """
+        Create a streaming chat completion with real-time token updates.
+        
+        Args:
+            messages: List of messages (ChatMessage objects or dicts)
+            model: Model to use (defaults to config model)
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens in response
+            tools: List of tool/function definitions
+            tool_choice: How to handle tool selection
+            stream_options: Options for streaming (e.g., {"include_usage": True})
+            **kwargs: Additional OpenAI API parameters
+            
+        Yields:
+            StreamingChunk objects with incremental content
+            
+        Raises:
+            LLMError: If API call fails after retries
+        """
+        # Convert ChatMessage objects to dicts
+        message_dicts = []
+        for msg in messages:
+            if isinstance(msg, ChatMessage):
+                message_dicts.append(msg.to_dict())
+            else:
+                message_dicts.append(msg)
+        
+        # Use configured model if not specified
+        if model is None:
+            model = self.config.model
+        
+        # Default stream options to include usage
+        if stream_options is None:
+            stream_options = {"include_usage": True}
+        
+        # Rate limiting
+        async with self.semaphore:
+            try:
+                logger.debug(
+                    f"Starting streaming chat completion",
+                    extra={
+                        "model": model,
+                        "messages": len(message_dicts),
+                        "temperature": temperature,
+                        "has_tools": bool(tools),
+                        "stream_options": stream_options,
+                    }
+                )
+                
+                # Build API call parameters
+                params = {
+                    "model": model,
+                    "messages": message_dicts,
+                    "temperature": temperature,
+                    "stream": True,
+                    "stream_options": stream_options,
+                    **kwargs,
+                }
+                
+                if max_tokens:
+                    params["max_tokens"] = max_tokens
+                if tools:
+                    params["tools"] = tools
+                if tool_choice:
+                    params["tool_choice"] = tool_choice
+                
+                # Make streaming API call
+                stream = await self.client.chat.completions.create(**params)
+                
+                # Process stream chunks
+                async for chunk in stream:
+                    yield self._parse_stream_chunk(chunk)
+                    
+            except RateLimitError as e:
+                logger.warning(f"Rate limit hit during streaming: {e}")
+                raise  # Let retry decorator handle it
+                
+            except APITimeoutError as e:
+                logger.warning(f"API timeout during streaming: {e}")
+                raise  # Let retry decorator handle it
+                
+            except APIConnectionError as e:
+                logger.warning(f"Connection error during streaming: {e}")
+                raise  # Let retry decorator handle it
+                
+            except AuthenticationError as e:
+                raise LLMError(
+                    f"Authentication failed: {str(e)}",
+                    provider="openai",
+                    suggestion="Check your API key is valid"
+                )
+                
+            except Exception as e:
+                logger.error(f"OpenAI streaming error: {e}")
+                raise LLMError(
+                    f"OpenAI streaming failed: {str(e)}",
+                    provider="openai"
+                )
+    
+    def _parse_stream_chunk(self, chunk: ChatCompletionChunk) -> StreamingChunk:
+        """
+        Parse a streaming chunk into our StreamingChunk model.
+        
+        Args:
+            chunk: Raw OpenAI streaming chunk
+            
+        Returns:
+            Parsed StreamingChunk
+        """
+        # Extract content from delta
+        content = None
+        if chunk.choices and chunk.choices[0].delta.content:
+            content = chunk.choices[0].delta.content
+        
+        # Extract finish reason
+        finish_reason = None
+        if chunk.choices and chunk.choices[0].finish_reason:
+            finish_reason = chunk.choices[0].finish_reason
+        
+        # Extract tool calls from delta
+        tool_calls = None
+        if chunk.choices and chunk.choices[0].delta.tool_calls:
+            tool_calls = [
+                ToolCall(
+                    id=tc.id or "",
+                    type=tc.type or "function",
+                    function={
+                        "name": tc.function.name if tc.function else "",
+                        "arguments": tc.function.arguments if tc.function else "",
+                    }
+                )
+                for tc in chunk.choices[0].delta.tool_calls
+            ]
+        
+        # Extract usage if present (only in final chunk with stream_options)
+        usage = None
+        if hasattr(chunk, 'usage') and chunk.usage:
+            usage = Usage(
+                prompt_tokens=chunk.usage.prompt_tokens,
+                completion_tokens=chunk.usage.completion_tokens,
+                total_tokens=chunk.usage.total_tokens,
+            )
+        
+        return StreamingChunk(
+            id=chunk.id,
+            model=chunk.model,
+            created=chunk.created,
+            content=content,
+            finish_reason=finish_reason,
+            tool_calls=tool_calls,
+            usage=usage,
+        )
+    
+    def count_tokens(
+        self,
+        text: str,
+        model: Optional[str] = None,
+    ) -> int:
+        """
+        Count tokens in text using tiktoken.
+        
+        Args:
+            text: Text to count tokens for
+            model: Model name (defaults to config model)
+            
+        Returns:
+            Number of tokens
+        """
+        if model is None:
+            model = self.config.model
+        
+        try:
+            # Try to get encoding for specific model
+            encoding = tiktoken.encoding_for_model(model)
+        except KeyError:
+            # Fall back to o200k_base for GPT-5 models
+            if "gpt-5" in model.lower():
+                encoding = tiktoken.get_encoding("o200k_base")
+            else:
+                # Default to cl100k_base for other models
+                encoding = tiktoken.get_encoding("cl100k_base")
+        
+        tokens = encoding.encode(text)
+        return len(tokens)
+    
+    def count_messages_tokens(
+        self,
+        messages: List[Union[ChatMessage, Dict[str, str]]],
+        model: Optional[str] = None,
+    ) -> int:
+        """
+        Count tokens in a list of messages.
+        
+        Accounts for message structure overhead.
+        
+        Args:
+            messages: List of messages
+            model: Model name (defaults to config model)
+            
+        Returns:
+            Total token count including overhead
+        """
+        if model is None:
+            model = self.config.model
+        
+        # Convert messages to text
+        total_tokens = 0
+        
+        for msg in messages:
+            if isinstance(msg, ChatMessage):
+                # Count role tokens (usually 1-2)
+                total_tokens += self.count_tokens(msg.role.value, model)
+                # Count content tokens
+                total_tokens += self.count_tokens(msg.content, model)
+                # Add message structure overhead (typically 3-4 tokens)
+                total_tokens += 4
+            else:
+                # Handle dict format
+                total_tokens += self.count_tokens(msg.get("role", ""), model)
+                total_tokens += self.count_tokens(msg.get("content", ""), model)
+                total_tokens += 4
+        
+        # Add conversation structure overhead
+        total_tokens += 3  # Every reply is primed with <|start|>assistant<|message|>
+        
+        return total_tokens
+    
+    def estimate_tokens_before_call(
+        self,
+        messages: List[Union[ChatMessage, Dict[str, str]]],
+        model: Optional[str] = None,
+        max_completion_tokens: Optional[int] = None,
+    ) -> TokenEstimate:
+        """
+        Estimate tokens and cost before making an API call.
+        
+        Args:
+            messages: List of messages
+            model: Model name (defaults to config model)
+            max_completion_tokens: Expected max completion tokens
+            
+        Returns:
+            TokenEstimate with cost and context window check
+        """
+        if model is None:
+            model = self.config.model
+        
+        # Count input tokens
+        input_tokens = self.count_messages_tokens(messages, model)
+        
+        # Estimate output tokens if not provided
+        if max_completion_tokens is None:
+            # Rough estimate: 20% of input tokens or 500, whichever is larger
+            max_completion_tokens = max(int(input_tokens * 0.2), 500)
+        
+        total_tokens = input_tokens + max_completion_tokens
+        
+        # Get model info for pricing and context window
+        model_info = self._get_model_info(model)
+        
+        # Calculate estimated cost
+        input_cost = (input_tokens / 1_000_000) * model_info["input_price"]
+        output_cost = (max_completion_tokens / 1_000_000) * model_info["output_price"]
+        estimated_cost = input_cost + output_cost
+        
+        # Check if fits in context window
+        fits_context = total_tokens <= model_info["context_window"]
+        
+        return TokenEstimate(
+            tokens=total_tokens,
+            estimated_cost=estimated_cost,
+            fits_context=fits_context,
+            context_window=model_info["context_window"],
+        )
+    
+    def _get_model_info(self, model: str) -> Dict[str, Any]:
+        """
+        Get model information including pricing and context window.
+        
+        Args:
+            model: Model name
+            
+        Returns:
+            Dict with model info
+        """
+        # GPT-5 models (as of August 2025)
+        if "gpt-5-nano" in model:
+            return {
+                "input_price": 0.05,  # $0.05 per 1M tokens
+                "output_price": 0.40,  # $0.40 per 1M tokens
+                "context_window": 272000,
+            }
+        elif "gpt-5-mini" in model:
+            return {
+                "input_price": 0.25,  # $0.25 per 1M tokens
+                "output_price": 2.00,  # $2.00 per 1M tokens
+                "context_window": 272000,
+            }
+        elif "gpt-5" in model:
+            return {
+                "input_price": 1.25,  # $1.25 per 1M tokens
+                "output_price": 10.00,  # $10.00 per 1M tokens
+                "context_window": 272000,
+            }
+        else:
+            # Default to GPT-4 pricing for unknown models
+            return {
+                "input_price": 10.00,  # $10 per 1M tokens
+                "output_price": 30.00,  # $30 per 1M tokens
+                "context_window": 128000,
+            }
     
     def _parse_completion_response(self, response: ChatCompletion) -> CompletionResponse:
         """
