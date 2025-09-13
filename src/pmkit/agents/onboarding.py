@@ -40,6 +40,13 @@ from pmkit.prompts.onboarding_prompts import OnboardingPrompts
 from pmkit.utils.console import console as pmkit_console
 from pmkit.utils.logger import get_logger
 
+# Import the new interactive prompt flow
+from pmkit.agents.interactive_prompt import (
+    InteractivePromptFlow,
+    WizardStep,
+    create_quick_setup_wizard,
+)
+
 logger = get_logger(__name__)
 
 
@@ -62,6 +69,7 @@ class OnboardingAgent:
         console: Optional[Console] = None,
         context_manager: Optional[ContextManager] = None,
         context_dir: Optional[Path] = None,
+        use_interactive: bool = True,  # Flag to use new interactive flow
     ):
         """
         Initialize the OnboardingAgent.
@@ -72,6 +80,7 @@ class OnboardingAgent:
             console: Rich console instance
             context_manager: Context manager for persistence
             context_dir: Directory for context files (for testing)
+            use_interactive: Whether to use the new interactive prompt flow
         """
         self.config = config
         self.grounding = grounding
@@ -80,6 +89,11 @@ class OnboardingAgent:
 
         self.prompts = OnboardingPrompts
         self.prompt_library = PromptLibrary
+
+        # Initialize interactive prompt flow if enabled
+        self.use_interactive = use_interactive
+        if use_interactive:
+            self.interactive_flow = InteractivePromptFlow(console=self.console)
 
         # State management
         self.state: Dict[str, Any] = {}
@@ -197,61 +211,74 @@ class OnboardingAgent:
         """
         self.console.print("\n" + self.prompts.PHASE_INTRO[1])
 
-        # Company name
-        if not self.state.get('company_name'):
-            self.console.print(self.prompts.COMPANY_NAME_HELP)
-            company_name = Prompt.ask(
-                self.prompts.COMPANY_NAME_PROMPT,
-                console=self.console
+        if self.use_interactive:
+            # Use the new interactive prompt flow for a delightful experience
+            # Create wizard steps for Phase 1 (reduced to 4 questions as per PM expert feedback)
+            wizard_data = self.interactive_flow.multi_step_wizard(
+                steps=create_quick_setup_wizard('b2b')[:4],  # Only first 4 steps for Phase 1
+                allow_skip=False,  # Phase 1 is required
+                show_progress=True,
             )
-            self.state['company_name'] = company_name
 
-        # Company type
-        if not self.state.get('company_type'):
-            self.console.print(self.prompts.COMPANY_TYPE_HELP)
-            for i, choice in enumerate(self.prompts.COMPANY_TYPE_CHOICES, 1):
-                self.console.print(f"  {i}. {choice}")
+            # Update state with collected data
+            self.state.update(wizard_data)
 
-            choice_idx = Prompt.ask(
-                self.prompts.COMPANY_TYPE_PROMPT,
-                choices=["1", "2", "3"],
-                default="1",
-                console=self.console
-            )
-            company_type_map = {"1": "b2b", "2": "b2c", "3": "b2b2c"}
-            # Handle invalid choices gracefully
-            self.state['company_type'] = company_type_map.get(choice_idx, "b2b")
+            # Normalize company type to lowercase
+            if self.state.get('company_type'):
+                self.state['company_type'] = self.state['company_type'].lower()
+                if self.state['company_type'] == 'b2b2c':
+                    self.state['company_type'] = 'b2b2c'
+                elif 'b2c' in self.state['company_type']:
+                    self.state['company_type'] = 'b2c'
+                else:
+                    self.state['company_type'] = 'b2b'
 
-        # Product name
-        if not self.state.get('product_name'):
-            self.console.print(self.prompts.PRODUCT_NAME_HELP)
-            product_name = Prompt.ask(
-                self.prompts.PRODUCT_NAME_PROMPT,
-                console=self.console
-            )
-            self.state['product_name'] = product_name
+        else:
+            # Fallback to original Rich-based prompts
+            # Company name
+            if not self.state.get('company_name'):
+                self.console.print(self.prompts.COMPANY_NAME_HELP)
+                company_name = Prompt.ask(
+                    self.prompts.COMPANY_NAME_PROMPT,
+                    console=self.console
+                )
+                self.state['company_name'] = company_name
 
-        # Product description
-        if not self.state.get('product_description'):
-            self.console.print(self.prompts.PRODUCT_DESC_HELP)
-            product_desc = Prompt.ask(
-                self.prompts.PRODUCT_DESC_PROMPT,
-                console=self.console
-            )
-            self.state['product_description'] = product_desc
+            # Company type
+            if not self.state.get('company_type'):
+                self.console.print(self.prompts.COMPANY_TYPE_HELP)
+                for i, choice in enumerate(self.prompts.COMPANY_TYPE_CHOICES, 1):
+                    self.console.print(f"  {i}. {choice}")
 
-        # User role (optional but useful)
-        if not self.state.get('user_role'):
-            for i, choice in enumerate(self.prompts.YOUR_ROLE_CHOICES, 1):
-                self.console.print(f"  {i}. {choice}")
+                choice_idx = Prompt.ask(
+                    self.prompts.COMPANY_TYPE_PROMPT,
+                    choices=["1", "2", "3"],
+                    default="1",
+                    console=self.console
+                )
+                company_type_map = {"1": "b2b", "2": "b2c", "3": "b2b2c"}
+                # Handle invalid choices gracefully
+                self.state['company_type'] = company_type_map.get(choice_idx, "b2b")
 
-            role_idx = Prompt.ask(
-                self.prompts.YOUR_ROLE_PROMPT,
-                choices=[str(i) for i in range(1, len(self.prompts.YOUR_ROLE_CHOICES) + 1)],
-                default="1",
-                console=self.console
-            )
-            self.state['user_role'] = self.prompts.YOUR_ROLE_CHOICES[int(role_idx) - 1]
+            # Product name
+            if not self.state.get('product_name'):
+                self.console.print(self.prompts.PRODUCT_NAME_HELP)
+                product_name = Prompt.ask(
+                    self.prompts.PRODUCT_NAME_PROMPT,
+                    console=self.console
+                )
+                self.state['product_name'] = product_name
+
+            # Product description
+            if not self.state.get('product_description'):
+                self.console.print(self.prompts.PRODUCT_DESC_HELP)
+                product_desc = Prompt.ask(
+                    self.prompts.PRODUCT_DESC_PROMPT,
+                    console=self.console
+                )
+                self.state['product_description'] = product_desc
+
+            # User role removed from Phase 1 as per PM expert feedback (moved to Phase 2)
 
     async def _phase2_enrichment(self) -> None:
         """
