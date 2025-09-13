@@ -236,6 +236,22 @@ All notable changes to PM-Kit are documented in this file.
 - No over-engineering - just 5 focused tests (~270 lines)
 - Total context system tests: 88 (all passing)
 
+#### PMKIT-023: OnboardingAgent comprehensive test suite (COMPLETE)
+- Created comprehensive test suite for OnboardingAgent with 35 tests
+- Tests all 3 phases (Essentials, Enrichment, Advanced) of onboarding flow
+- Validates state persistence and resume functionality
+- Tests cancellation handling and error scenarios
+- Validates B2B vs B2C differentiation and context creation
+- Properly mocks GroundingAdapter and external dependencies
+- Ensures deterministic testing without hitting real APIs
+- Tests performance requirement (<5 minute completion)
+- Fixed syntax errors and control characters in onboarding_prompts.py
+- Fixed all test failures - all 35 tests now passing:
+  - Added required Rich console attributes (get_time, _live_stack, is_jupyter, is_interactive)
+  - Fixed actual bug where competitors/metrics weren't collected without grounding adapter
+  - Added context_dir parameter to OnboardingAgent for test isolation
+  - Fixed invalid choice handling with proper fallback to defaults
+
 ### Fixed
 
 #### Test Suite Fixes
