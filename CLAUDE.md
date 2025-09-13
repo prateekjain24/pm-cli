@@ -221,3 +221,4 @@ If cache isn't invalidating properly:
 - always update the CHANGELOG.md after finishing work. Commit after testing.
 - never cheat on tests and make them pass by rewriting the tests or writing the test in a way it always passes.
 - latest Openai model is GPT-5 that was released in August 2025
+- overall implementation plan is in IMP_Claud.md . But over the cousersew of implemntation we may have made some minor changes

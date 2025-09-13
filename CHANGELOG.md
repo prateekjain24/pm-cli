@@ -137,6 +137,22 @@ All notable changes to PM-Kit are documented in this file.
 - Verified retry behavior with exponential backoff (rate limit, connection, timeout)
 - Added cache hit/miss scenario tests (5 cache-specific tests)
 - Validated error handling for authentication, timeout, and rate limit errors
+
+#### PMKIT-015: Define context Pydantic models
+- Created lean, PM-focused context models (CompanyContext, ProductContext, MarketContext, TeamContext, OKRContext)
+- Implemented smart defaults and B2B/B2C differentiation logic
+- Added validation rules for required fields without overengineering
+- Used Pydantic V2 best practices (ConfigDict, field_validator, model_dump)
+- Created comprehensive test suite with 22 tests covering all models
+- Models focus on essential fields that directly improve PRD quality or save PM time
+
+#### PMKIT-016: Complete team and OKR models with confidence scoring
+- Added confidence scoring (0-100%) to KeyResult model for tracking achievement probability
+- Implemented average_confidence property on Objective to aggregate KR confidence
+- Added at_risk_key_results property to OKRContext to identify KRs with <50% confidence
+- Created tests for confidence validation and at-risk identification
+- All 23 context model tests passing with confidence scoring features
+- Kept implementation minimal - just one new field and two helper properties
 - Implemented proper mocking for OpenAI API responses and streaming
 - All tests passing with 100% coverage of integration scenarios
 - Total project test count: 221 tests
