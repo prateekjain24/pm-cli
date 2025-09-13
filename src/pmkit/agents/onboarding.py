@@ -85,7 +85,17 @@ class OnboardingAgent:
         self.config = config
         self.grounding = grounding
         self.console = console or pmkit_console.console
-        self.context_manager = context_manager or ContextManager()
+
+        # Use context_dir if provided (for testing), otherwise use default
+        if context_dir:
+            self.context_dir = Path(context_dir)
+            self.state_file = Path(context_dir) / "onboarding_state.yaml"
+        else:
+            self.context_dir = Path.home() / ".pmkit" / "context"
+            self.state_file = Path.home() / ".pmkit" / "onboarding_state.yaml"
+
+        # Initialize context manager with the context directory
+        self.context_manager = context_manager or ContextManager(self.context_dir)
 
         self.prompts = OnboardingPrompts
         self.prompt_library = PromptLibrary
@@ -97,11 +107,6 @@ class OnboardingAgent:
 
         # State management
         self.state: Dict[str, Any] = {}
-        # Use context_dir if provided (for testing), otherwise use default
-        if context_dir:
-            self.state_file = Path(context_dir) / "onboarding_state.yaml"
-        else:
-            self.state_file = Path.home() / ".pmkit" / "onboarding_state.yaml"
         self.cancelled = False
 
         # Setup signal handlers for graceful cancellation
@@ -629,7 +634,7 @@ class OnboardingAgent:
         )
 
         # Save context
-        self.context_manager.save(context)
+        self.context_manager.save_context(context)
 
         return context
 
