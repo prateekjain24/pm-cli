@@ -166,3 +166,30 @@ All notable changes to PM-Kit are documented in this file.
 - Implemented proper mocking for OpenAI API responses and streaming
 - All tests passing with 100% coverage of integration scenarios
 - Total project test count: 221 tests
+
+#### PMKIT-018: Build ContextManager for persistence
+- Implemented ContextManager class for YAML-based context persistence
+- Added save_context() method to save complete context to individual YAML files
+- Added load_context() method to load and optionally validate context from disk
+- Implemented atomic write operations using temp file + rename pattern to prevent corruption
+- Added automatic backup creation (.backup files) before overwriting existing files
+- Created individual save methods for each context component (save_company, save_product, etc.)
+- Added context_exists() method to check if valid context is present
+- Implemented get_context_summary() to report file existence and version status
+- Integrated with ContextVersion for automatic version hash updates on save
+- Created comprehensive test suite with 15 tests covering all persistence scenarios
+- No over-engineering: simple YAML files, no database, straightforward file operations
+
+#### PMKIT-019: Add context validation layer
+- Created ContextValidator class with comprehensive validation rules
+- Validates required fields presence (company and product are mandatory)
+- Checks data consistency (e.g., team size matches sum of roles)
+- Provides detailed validation errors with field path and actionable messages
+- Differentiates between errors (blocking) and warnings (informational)
+- Implemented auto-repair capability for minor issues (missing default metrics, team size mismatch)
+- Added B2B/B2C specific validations (e.g., B2B companies should have sales teams)
+- Validates OKR confidence levels and identifies at-risk key results
+- Integrated validation into ContextManager with optional enable/disable
+- Added auto_repair parameter to save_context() for automatic fixes
+- Created comprehensive test suite with 12 tests covering all validation scenarios
+- Total project test count: 248 tests (all passing)
