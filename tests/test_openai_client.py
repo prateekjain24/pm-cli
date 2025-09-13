@@ -101,8 +101,11 @@ class TestOpenAIClient:
         client = OpenAIClient(mock_config_no_key, validate_on_init=False)
         assert client.client.api_key == "env-api-key"
     
-    def test_init_no_api_key_raises(self, mock_config_no_key):
+    def test_init_no_api_key_raises(self, mock_config_no_key, monkeypatch):
         """Test that initialization without API key raises error."""
+        # Ensure OPENAI_API_KEY is not set in environment
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        
         with pytest.raises(LLMError) as exc_info:
             OpenAIClient(mock_config_no_key, validate_on_init=False)
         

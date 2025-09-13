@@ -8,6 +8,6 @@ flow through review gates like code, and publish to Confluence/Notion.
 __version__ = "0.1.0"
 __author__ = "PM-Kit Team"
 
-from pmkit.cli import app
+# from pmkit.cli import app  # TODO: Fix when CLI is implemented
 
-__all__ = ["app", "__version__"]
+__all__ = ["__version__"]

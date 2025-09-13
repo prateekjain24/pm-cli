@@ -65,10 +65,9 @@ class TestPMKitError:
         """Test that display() method creates and shows a Rich panel."""
         console_mock, output = mock_console
         
-        # Patch the console in the exceptions module
-        with patch('pmkit.exceptions.console', console_mock):
-            error = PMKitError("Test error message")
-            error.display()
+        # The console is already patched by the fixture
+        error = PMKitError("Test error message")
+        error.display()
         
         output_str = output.getvalue()
         assert "Error" in output_str
@@ -78,12 +77,12 @@ class TestPMKitError:
         """Test that display() shows suggestions with lightbulb emoji."""
         console_mock, output = mock_console
         
-        with patch('pmkit.exceptions.console', console_mock):
-            error = PMKitError(
-                "Configuration missing",
-                suggestion="Create a config.yaml file"
-            )
-            error.display()
+        # The console is already patched by the fixture
+        error = PMKitError(
+            "Configuration missing",
+            suggestion="Create a config.yaml file"
+        )
+        error.display()
         
         output_str = output.getvalue()
         assert "Configuration missing" in output_str
@@ -94,9 +93,9 @@ class TestPMKitError:
         """Test that display() gracefully handles None values."""
         console_mock, output = mock_console
         
-        with patch('pmkit.exceptions.console', console_mock):
-            error = PMKitError("Error with no extras", suggestion=None, context=None)
-            error.display()
+        # The console is already patched by the fixture
+        error = PMKitError("Error with no extras", suggestion=None, context=None)
+        error.display()
         
         output_str = output.getvalue()
         assert "Error with no extras" in output_str
@@ -305,9 +304,9 @@ class TestErrorFormatting:
         """Test that error panels have correct border style and title."""
         console_mock, output = mock_console
         
-        with patch('pmkit.exceptions.console', console_mock):
-            error = PMKitError("Styling test")
-            error.display()
+        # The console is already patched by the fixture
+        error = PMKitError("Styling test")
+        error.display()
         
         output_str = output.getvalue()
         # Panel should have error title
@@ -324,9 +323,9 @@ class TestErrorFormatting:
             ValidationError("Invalid email", field="user_email")
         ]
         
-        with patch('pmkit.exceptions.console', console_mock):
-            for error in errors:
-                error.display()
+        # The console is already patched by the fixture
+        for error in errors:
+            error.display()
         
         output_str = output.getvalue()
         # All errors should be in output
@@ -361,9 +360,9 @@ class TestEdgeCases:
         
         long_message = "Error: " + "x" * 500
         
-        with patch('pmkit.exceptions.console', console_mock):
-            error = PMKitError(long_message)
-            error.display()
+        # The console is already patched by the fixture
+        error = PMKitError(long_message)
+        error.display()
         
         output_str = output.getvalue()
         # Should contain at least part of the message
@@ -376,9 +375,9 @@ class TestEdgeCases:
         
         special_message = "Error with special chars: \n\t\r 'quotes' \"double\" <html>"
         
-        with patch('pmkit.exceptions.console', console_mock):
-            error = PMKitError(special_message)
-            error.display()
+        # The console is already patched by the fixture
+        error = PMKitError(special_message)
+        error.display()
         
         output_str = output.getvalue()
         # Should preserve the message content
@@ -468,15 +467,15 @@ class TestIntegration:
         
         # Test the flow
         import os
-        with patch('pmkit.exceptions.console', console_mock):
-            try:
-                # Remove API key to trigger error
-                os.environ.pop("OPENAI_API_KEY", None)
-                process_config()
-            except PMKitError as e:
-                e.display()
-                assert "API_KEY not found" in e.message
-                assert e.suggestion is not None
+        # The console is already patched by the fixture
+        try:
+            # Remove API key to trigger error
+            os.environ.pop("OPENAI_API_KEY", None)
+            process_config()
+        except PMKitError as e:
+            e.display()
+            assert "API_KEY not found" in e.message
+            assert e.suggestion is not None
         
         output_str = output.getvalue()
         # Check output was captured

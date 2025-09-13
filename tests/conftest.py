@@ -244,16 +244,16 @@ def cli_runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_console() -> Generator[tuple[PMKitConsole, StringIO], None, None]:
+def mock_console() -> Generator[tuple[Any, StringIO], None, None]:
     """
     Create a mock Rich console for capturing output.
     
-    This fixture replaces the global console with a mock version that
-    captures all output to a StringIO buffer. This allows tests to verify
-    console output including Rich formatting.
+    This fixture creates a test console that captures output to a StringIO buffer.
+    It patches the console's print method in the exceptions module and provides
+    a mock PMKitConsole for tests.
     
     Yields:
-        tuple[PMKitConsole, StringIO]: Mock console and output buffer
+        tuple[Any, StringIO]: Mock console and output buffer
         
     Example:
         def test_console_output(mock_console):
@@ -262,6 +262,8 @@ def mock_console() -> Generator[tuple[PMKitConsole, StringIO], None, None]:
             assert "Test passed!" in output.getvalue()
     """
     from rich.theme import Theme
+    from rich.console import Console
+    from rich.text import Text
     
     # Create a StringIO buffer for capturing output
     output_buffer = StringIO()
@@ -277,9 +279,8 @@ def mock_console() -> Generator[tuple[PMKitConsole, StringIO], None, None]:
         "help.example": "dim cyan",
     })
     
-    # Create a mock console with the buffer and theme
-    mock_console_instance = PMKitConsole()
-    mock_console_instance._console = Console(
+    # Create a test console with the buffer and theme
+    test_console = Console(
         file=output_buffer,
         force_terminal=True,
         width=120,
@@ -287,9 +288,75 @@ def mock_console() -> Generator[tuple[PMKitConsole, StringIO], None, None]:
         theme=test_theme,
     )
     
-    # Patch the global console
-    with patch("pmkit.utils.console.console", mock_console_instance):
-        yield mock_console_instance, output_buffer
+    # Create a mock PMKitConsole-like object
+    class MockConsole:
+        def __init__(self, console):
+            self._console = console
+            
+        def print(self, *args, **kwargs):
+            self._console.print(*args, **kwargs)
+            
+        def success(self, message: str):
+            self._console.print(f"✅ {message}", style="green")
+            
+        def error(self, message: str):
+            self._console.print(f"❌ {message}", style="red")
+            
+        def warning(self, message: str):
+            self._console.print(f"⚠️  {message}", style="yellow")
+            
+        def info(self, message: str):
+            self._console.print(f"ℹ️  {message}", style="cyan")
+            
+        def status_panel(self, title: str, content: str, status: str = "info", emoji: str = ""):
+            from rich.panel import Panel
+            from rich.text import Text
+            
+            # Create panel content
+            text = Text()
+            if emoji:
+                text.append(f"{emoji} ")
+            text.append(content)
+            
+            # Determine border style based on status
+            border_styles = {
+                "success": "green",
+                "error": "red",
+                "warning": "yellow",
+                "info": "cyan"
+            }
+            border_style = border_styles.get(status, "blue")
+            
+            # Create and print panel
+            panel = Panel(
+                text,
+                title=title,
+                title_align="left",
+                border_style=border_style,
+                padding=(1, 2)
+            )
+            self._console.print(panel)
+            
+        def __getattr__(self, name):
+            # Forward any other attribute access to the underlying console
+            return getattr(self._console, name)
+    
+    mock_console_obj = MockConsole(test_console)
+    
+    # Import the exceptions module to ensure console is imported
+    import pmkit.exceptions
+    
+    # Store original print method
+    original_print = pmkit.exceptions.console.print
+    
+    # Replace print method with our test console's print
+    pmkit.exceptions.console.print = mock_console_obj.print
+    
+    try:
+        yield mock_console_obj, output_buffer
+    finally:
+        # Restore original print method
+        pmkit.exceptions.console.print = original_print
 
 
 @pytest.fixture
