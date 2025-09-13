@@ -19,6 +19,7 @@ from pmkit.context.models import (
 )
 from pmkit.context.version import ContextVersion
 from pmkit.context.validator import ContextValidator, ValidationError
+from pmkit.context.migration import ContextMigrator, SCHEMA_VERSION
 
 
 class ContextManager:
@@ -41,9 +42,10 @@ class ContextManager:
         self.history_dir = self.context_dir / "history"
         self.history_dir.mkdir(exist_ok=True)
         
-        # Initialize validator
+        # Initialize validator and migrator
         self.validate = validate
         self.validator = ContextValidator() if validate else None
+        self.migrator = ContextMigrator()
     
     def save_context(self, context: Context, auto_repair: bool = False) -> Tuple[bool, List[ValidationError]]:
         """Save complete context to disk.
@@ -88,8 +90,9 @@ class ContextManager:
         if context.okrs:
             self._save_component("okrs.yaml", context.okrs)
         
-        # Update version hash
+        # Update version hash and schema version
         ContextVersion.save_current(self.context_dir)
+        self.migrator.save_schema_version(self.context_dir)
         
         return (True, errors)
     
@@ -103,12 +106,29 @@ class ContextManager:
             Tuple of (context, validation_errors)
             Context is None if required files don't exist
         """
+        errors = []
+        
+        # Check version compatibility first
+        if self.validate:
+            is_compatible, version_errors = self.validator.validate_version_compatibility(self.context_dir)
+            errors.extend(version_errors)
+            
+            # If incompatible, check if migration is available
+            if not is_compatible and self.migrator.needs_migration(self.context_dir):
+                errors.append(ValidationError(
+                    "migration",
+                    "Context needs migration. Run 'pm migrate' to update schema",
+                    severity="error"
+                ))
+                # Don't load incompatible context
+                return (None, errors)
+        
         # Check if required files exist
         company_file = self.context_dir / "company.yaml"
         product_file = self.context_dir / "product.yaml"
         
         if not company_file.exists() or not product_file.exists():
-            return (None, [])
+            return (None, errors)
         
         # Load required components
         company = self._load_component("company.yaml", CompanyContext)
@@ -439,3 +459,18 @@ class ContextManager:
                 result["success"] = False
         
         return result
+    
+    def migrate_context(self) -> Tuple[bool, str]:
+        """Migrate context to current schema version if needed.
+        
+        Returns:
+            Tuple of (success, message)
+        """
+        # Always perform migration (it will handle all cases)
+        success, message = self.migrator.migrate(self.context_dir)
+        
+        if success:
+            # Update version hash after successful migration
+            ContextVersion.save_current(self.context_dir)
+        
+        return success, message

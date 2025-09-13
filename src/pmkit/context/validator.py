@@ -4,9 +4,11 @@ Ensures context data is valid and consistent before use.
 Provides detailed validation errors and optional auto-repair.
 """
 
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from pmkit.context.models import Context, TeamContext
+from pmkit.context.migration import ContextMigrator
 
 
 class ValidationError:
@@ -35,6 +37,38 @@ class ContextValidator:
     Simple validation without over-engineering. Focus on catching
     common issues that would break PRD generation.
     """
+    
+    def __init__(self):
+        """Initialize validator with migrator."""
+        self.migrator = ContextMigrator()
+    
+    def validate_version_compatibility(self, context_dir: Path) -> Tuple[bool, List[ValidationError]]:
+        """Validate context schema version compatibility.
+        
+        Args:
+            context_dir: Directory containing context files
+            
+        Returns:
+            Tuple of (is_compatible, list_of_errors)
+        """
+        errors = []
+        is_compatible, message = self.migrator.check_compatibility(context_dir)
+        
+        if not is_compatible and message:
+            errors.append(ValidationError(
+                field="schema_version",
+                message=message,
+                severity="error"
+            ))
+        elif message and "compatible" in message.lower():
+            # Minor version difference - just a warning
+            errors.append(ValidationError(
+                field="schema_version",
+                message=message,
+                severity="warning"
+            ))
+        
+        return is_compatible, errors
     
     def validate(self, context: Context) -> Tuple[bool, List[ValidationError]]:
         """Validate a complete context.
