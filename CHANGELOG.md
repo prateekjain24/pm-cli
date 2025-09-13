@@ -153,6 +153,16 @@ All notable changes to PM-Kit are documented in this file.
 - Created tests for confidence validation and at-risk identification
 - All 23 context model tests passing with confidence scoring features
 - Kept implementation minimal - just one new field and two helper properties
+
+#### PMKIT-017: Implement context versioning with SHA256
+- Created ContextVersion class with content-based SHA256 hashing
+- Version computed as SHA256(company.yaml + product.yaml + market.yaml + team.yaml + okrs.yaml)
+- Implemented minimal MVP: compute_hash, has_changed, get_current methods
+- Added load_stored and save_current for version persistence
+- Files processed in deterministic order for consistent hashing
+- Created 10 comprehensive tests covering all versioning scenarios
+- No overengineering: no history tracking, no comparison operators, just ~50 lines of code
+- Enables cache invalidation when context changes, avoiding unnecessary PRD regeneration
 - Implemented proper mocking for OpenAI API responses and streaming
 - All tests passing with 100% coverage of integration scenarios
 - Total project test count: 221 tests
