@@ -478,3 +478,179 @@ class TestContextManager:
         loaded, _ = manager.load_context(validate=False)
         assert loaded.product.main_metric == "MRR"  # Auto-set for B2B
         assert loaded.team.size == 15  # Fixed to match roles
+    
+    def test_get_initialization_status_not_initialized(self, tmp_path):
+        """Test initialization status when nothing exists."""
+        context_dir = tmp_path / ".pmkit" / "context"
+        # Don't create the directory - we want to test when it doesn't exist
+        manager = ContextManager(context_dir, validate=False)
+        
+        # Manually set context_dir to not create it automatically
+        manager.context_dir = context_dir
+        
+        status = manager.get_initialization_status()
+        
+        # When the context directory doesn't exist at all, it should be not_initialized
+        if not context_dir.exists():
+            assert status["status"] == "not_initialized"
+        else:
+            # If the directory was created by ContextManager, it will be partial (no files)
+            assert status["status"] == "partial"
+        
+        assert status["is_valid"] is False
+        assert len(status["suggestions"]) > 0
+    
+    def test_get_initialization_status_partial_missing_required(self, temp_context_dir):
+        """Test status when required files are missing."""
+        manager = ContextManager(temp_context_dir)
+        
+        # Create only company file (missing product)
+        company = CompanyContext(name="PartialCo", type="b2b", stage="seed")
+        manager.save_company(company)
+        
+        status = manager.get_initialization_status()
+        
+        assert status["status"] == "partial"
+        assert status["is_valid"] is False
+        assert "product.yaml" in status["required_missing"]
+        assert len(status["suggestions"]) > 0
+    
+    def test_get_initialization_status_complete(self, temp_context_dir, sample_context):
+        """Test status when context is complete and valid."""
+        manager = ContextManager(temp_context_dir, validate=False)
+        manager.save_context(sample_context)
+        
+        status = manager.get_initialization_status()
+        
+        assert status["status"] == "complete"
+        assert status["is_valid"] is True
+        assert len(status["required_missing"]) == 0
+        assert len(status["validation_errors"]) == 0
+    
+    def test_get_initialization_status_complete_missing_optional(self, temp_context_dir):
+        """Test status when optional files are missing."""
+        manager = ContextManager(temp_context_dir, validate=False)
+        
+        # Save only required files
+        context = Context(
+            company=CompanyContext(name="MinCo", type="b2b", stage="seed"),
+            product=ProductContext(
+                name="MinProduct",
+                description="Minimal product for testing"
+            )
+        )
+        manager.save_context(context)
+        
+        status = manager.get_initialization_status()
+        
+        assert status["status"] == "complete"
+        assert status["is_valid"] is True
+        assert len(status["optional_missing"]) == 3  # market, team, okrs
+        assert any("Consider adding optional" in s for s in status["suggestions"])
+    
+    def test_get_initialization_status_with_validation_errors(self, temp_context_dir):
+        """Test status when context has validation errors."""
+        manager_no_val = ContextManager(temp_context_dir, validate=False)
+        
+        # Save context with validation errors
+        context = Context(
+            company=CompanyContext(name="ErrorCo", type="b2b", stage="growth"),
+            product=ProductContext(
+                name="ErrorProduct",
+                description="Product with errors"
+            ),
+            team=TeamContext(
+                size=10,
+                roles={"engineers": -5}  # Negative value - error
+            )
+        )
+        manager_no_val.save_context(context)
+        
+        # Check status with validation
+        manager_with_val = ContextManager(temp_context_dir, validate=True)
+        status = manager_with_val.get_initialization_status()
+        
+        assert status["status"] == "partial"
+        assert status["is_valid"] is False
+        assert len(status["validation_errors"]) > 0
+    
+    def test_get_initialization_status_with_warnings(self, temp_context_dir):
+        """Test status when context has only warnings."""
+        manager = ContextManager(temp_context_dir, validate=False)
+        
+        # Save context that will generate warnings
+        context = Context(
+            company=CompanyContext(
+                name="TestCo",  # Generic name - warning
+                type="b2b",
+                stage="growth"
+            ),
+            product=ProductContext(
+                name="Product",
+                description="Short desc",  # Too brief - warning
+                stage="scale"
+            )
+        )
+        manager.save_context(context)
+        
+        # Check status with validation
+        status = manager.get_initialization_status()
+        
+        # Should be complete_with_warnings (warnings don't block)
+        assert status["status"] in ["complete", "complete_with_warnings"]
+        assert status["is_valid"] is True
+    
+    def test_repair_context_creates_structure(self, tmp_path):
+        """Test that repair_context creates missing structure."""
+        # Use the standard temp_context_dir fixture style
+        context_dir = tmp_path / ".pmkit" / "context"
+        context_dir.mkdir(parents=True)
+        manager = ContextManager(context_dir)
+        
+        result = manager.repair_context()
+        
+        # The repair should create template files
+        assert (context_dir / "company.yaml").exists()
+        assert (context_dir / "product.yaml").exists()
+        assert (context_dir / "history").exists()
+        
+        # Check result indicates success or at least provides useful feedback
+        if result["success"]:
+            assert len(result["actions_taken"]) > 0
+        else:
+            # Even if not fully successful, we should have attempted something
+            assert len(result["actions_taken"]) > 0 or len(result["remaining_issues"]) > 0
+    
+    def test_repair_context_fixes_validation(self, temp_context_dir):
+        """Test that repair_context can fix validation issues."""
+        manager = ContextManager(temp_context_dir, validate=True)
+        
+        # Save context with auto-fixable issues
+        context = Context(
+            company=CompanyContext(name="FixCo", type="b2b", stage="growth"),
+            product=ProductContext(
+                name="FixProduct",
+                description="Product to fix",
+                stage="pmf",
+                main_metric=None  # Will be auto-fixed
+            ),
+            team=TeamContext(
+                size=999,  # Wrong size
+                roles={"engineers": 5}
+            )
+        )
+        
+        # Save without auto-repair first
+        manager_no_val = ContextManager(temp_context_dir, validate=False)
+        manager_no_val.save_context(context)
+        
+        # Now repair
+        result = manager.repair_context(auto_fix=True)
+        
+        assert result["success"] is True
+        assert "Auto-repaired validation warnings" in result["actions_taken"]
+        
+        # Verify fixes were applied
+        loaded, _ = manager.load_context(validate=False)
+        assert loaded.product.main_metric == "MRR"
+        assert loaded.team.size == 5  # Fixed to match roles

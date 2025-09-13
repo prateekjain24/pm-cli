@@ -277,3 +277,165 @@ class ContextManager:
         summary['version'] = ContextVersion.load_stored(self.context_dir)
         
         return summary
+    
+    def get_initialization_status(self) -> dict:
+        """Get detailed initialization status of the context.
+        
+        Checks for context completeness, validation status, and provides
+        actionable information about what needs to be fixed.
+        
+        Returns:
+            Dictionary with initialization status:
+            - status: 'not_initialized', 'partial', 'complete', or 'complete_with_warnings'
+            - is_valid: True if context passes validation
+            - required_missing: List of missing required files
+            - optional_missing: List of missing optional files
+            - validation_errors: List of validation errors if any
+            - suggestions: List of suggestions to fix issues
+        """
+        result = {
+            "status": "not_initialized",
+            "is_valid": False,
+            "required_missing": [],
+            "optional_missing": [],
+            "validation_errors": [],
+            "suggestions": []
+        }
+        
+        # Check if context directory exists
+        if not self.context_dir.exists():
+            result["status"] = "not_initialized"
+            result["suggestions"].append("Run 'pm init' to initialize your project context")
+            return result
+        
+        # Check required files (company and product)
+        company_file = self.context_dir / "company.yaml"
+        product_file = self.context_dir / "product.yaml"
+        
+        if not company_file.exists():
+            result["required_missing"].append("company.yaml")
+        if not product_file.exists():
+            result["required_missing"].append("product.yaml")
+        
+        # Check optional files
+        optional_files = ["market.yaml", "team.yaml", "okrs.yaml"]
+        for filename in optional_files:
+            if not (self.context_dir / filename).exists():
+                result["optional_missing"].append(filename)
+        
+        # Determine status based on what's missing
+        if result["required_missing"]:
+            result["status"] = "partial"
+            result["suggestions"].append(
+                f"Missing required files: {', '.join(result['required_missing'])}. "
+                "Run 'pm init' to complete initialization."
+            )
+        else:
+            # Try to load and validate the context
+            context, validation_errors = self.load_context(validate=True)
+            
+            if context is None:
+                result["status"] = "partial"
+                result["suggestions"].append(
+                    "Context files exist but cannot be loaded. Check file format and content."
+                )
+            else:
+                # Context loads successfully
+                if validation_errors:
+                    # Check if there are errors or just warnings
+                    has_errors = any(e.severity == "error" for e in validation_errors)
+                    
+                    if has_errors:
+                        result["status"] = "partial"
+                        result["is_valid"] = False
+                        result["validation_errors"] = [
+                            f"{e.field}: {e.message}" for e in validation_errors
+                            if e.severity == "error"
+                        ]
+                        result["suggestions"].append(
+                            "Fix validation errors in your context files"
+                        )
+                    else:
+                        # Only warnings
+                        result["status"] = "complete_with_warnings"
+                        result["is_valid"] = True
+                        result["validation_errors"] = [
+                            f"{e.field}: {e.message}" for e in validation_errors
+                        ]
+                        result["suggestions"].append(
+                            "Context is complete but has warnings. Consider addressing them for better results."
+                        )
+                else:
+                    # No validation issues
+                    result["status"] = "complete"
+                    result["is_valid"] = True
+                    
+                    # Suggest adding optional files if missing
+                    if result["optional_missing"]:
+                        result["suggestions"].append(
+                            f"Consider adding optional context files for better PRD generation: "
+                            f"{', '.join(result['optional_missing'])}"
+                        )
+        
+        return result
+    
+    def repair_context(self, auto_fix: bool = True) -> dict:
+        """Attempt to repair context issues.
+        
+        This method can:
+        - Create missing directories
+        - Create template files for missing context
+        - Fix validation warnings where possible
+        
+        Args:
+            auto_fix: If True, attempts to auto-fix validation issues
+            
+        Returns:
+            Dictionary with repair results:
+            - success: True if all repairs succeeded
+            - actions_taken: List of actions performed
+            - remaining_issues: List of issues that couldn't be fixed
+        """
+        from pmkit.context.structure import repair_context_structure
+        
+        result = {
+            "success": True,
+            "actions_taken": [],
+            "remaining_issues": []
+        }
+        
+        # First, ensure directory structure is complete
+        structure_result = repair_context_structure(self.context_dir.parent.parent)
+        if structure_result.get("created_dirs") or structure_result.get("created_files"):
+            result["actions_taken"].append("Repaired directory structure")
+            for d in structure_result.get("created_dirs", []):
+                result["actions_taken"].append(f"Created directory: {d}")
+            for f in structure_result.get("created_files", []):
+                result["actions_taken"].append(f"Created template: {f}")
+        
+        # Try to load and validate context
+        context, validation_errors = self.load_context(validate=True)
+        
+        if context and auto_fix:
+            # Attempt auto-repair of validation issues
+            if self.validator and self.validator.can_auto_repair(context, validation_errors):
+                repaired_context = self.validator.auto_repair(context, validation_errors)
+                success, remaining_errors = self.save_context(repaired_context)
+                
+                if success:
+                    result["actions_taken"].append("Auto-repaired validation warnings")
+                else:
+                    result["success"] = False
+                    result["remaining_issues"].extend([
+                        f"{e.field}: {e.message}" for e in remaining_errors
+                    ])
+        elif validation_errors:
+            # Can't auto-fix, report issues
+            result["remaining_issues"].extend([
+                f"{e.field}: {e.message}" for e in validation_errors
+                if e.severity == "error"
+            ])
+            if result["remaining_issues"]:
+                result["success"] = False
+        
+        return result

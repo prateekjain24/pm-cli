@@ -193,3 +193,29 @@ All notable changes to PM-Kit are documented in this file.
 - Added auto_repair parameter to save_context() for automatic fixes
 - Created comprehensive test suite with 12 tests covering all validation scenarios
 - Total project test count: 248 tests (all passing)
+
+#### PMKIT-020: Create context file structure
+- Implemented initialize_context_structure() function to set up .pmkit/context directory
+- Creates all required directories: .pmkit, context, history for versioned backups
+- Generates template YAML files with helpful comments for company, product, market, team, and OKRs
+- Templates include sensible defaults and explanatory headers for each field
+- Added .gitignore in context directory to exclude history and backup files
+- Implemented check_context_structure() to verify structure completeness
+- Created repair_context_structure() to fix missing directories/files without overwriting
+- Added proper error handling for permission issues and file system errors
+- Operations are idempotent - safe to run multiple times
+- Created comprehensive test suite with 15 tests covering all scenarios
+- All initialization operations use atomic writes for safety
+
+#### PMKIT-021: Implement context exists check
+- Enhanced ContextManager with get_initialization_status() method
+- Returns detailed status: 'not_initialized', 'partial', 'complete', or 'complete_with_warnings'
+- Identifies missing required files (company.yaml, product.yaml)
+- Lists missing optional files (market.yaml, team.yaml, okrs.yaml)
+- Validates existing context and reports validation errors separately
+- Provides actionable suggestions for fixing issues
+- Added repair_context() method to automatically fix structure and validation issues
+- Integrates with context structure module for directory/file creation
+- Can auto-repair validation warnings when auto_fix=True
+- Added 10 comprehensive tests for initialization status checking
+- Total project test count: 286 tests (all passing)
