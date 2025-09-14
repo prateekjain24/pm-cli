@@ -19,6 +19,7 @@ import re
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
 from pmkit.llm.grounding import GroundingAdapter
@@ -51,6 +52,46 @@ class ParsedField(BaseModel):
     last_updated: Optional[str] = None
 
 
+# Phased enrichment models for structured extraction
+class Phase1Enrichment(BaseModel):
+    """Phase 1 - Product description enrichment."""
+    product_description: Optional[str] = Field(None, description="Clear description of what the product does")
+
+
+class Phase2Enrichment(BaseModel):
+    """Phase 2 - Core business information."""
+    company_stage: Optional[str] = Field(None, description="Seed, Series A-E, IPO, Acquired")
+    target_market: Optional[str] = Field(None, description="Who are their customers")
+    competitors: List[str] = Field(default_factory=list, description="Main competitor names")
+    north_star_metric: Optional[str] = Field(None, description="Their primary success metric")
+
+
+class Phase3Enrichment(BaseModel):
+    """Phase 3 - Additional details."""
+    website: Optional[str] = Field(None, description="Company website URL")
+    team_size: Optional[str] = Field(None, description="Number of employees")
+    pricing_model: Optional[str] = Field(None, description="How they charge customers")
+    user_count: Optional[str] = Field(None, description="Number of users/customers")
+    key_differentiator: Optional[str] = Field(None, description="What makes them unique")
+
+
+class FullEnrichment(BaseModel):
+    """Combined model for single extraction of all phases."""
+    # Phase 1
+    product_description: Optional[str] = None
+    # Phase 2
+    company_stage: Optional[str] = None
+    target_market: Optional[str] = None
+    competitors: List[str] = Field(default_factory=list)
+    north_star_metric: Optional[str] = None
+    # Phase 3
+    website: Optional[str] = None
+    team_size: Optional[str] = None
+    pricing_model: Optional[str] = None
+    user_count: Optional[str] = None
+    key_differentiator: Optional[str] = None
+
+
 class EnrichmentService:
     """
     Smart enrichment service with agentic behavior.
@@ -70,13 +111,25 @@ class EnrichmentService:
             "pricing model target customers technology stack {product_description} "
             "{business_model} market position valuation funding"
         ),
+        "product": (
+            '"{company_name}" what is {product_name} product description features '
+            "capabilities use cases value proposition {product_description}"
+        ),
+        "business_model": (
+            "{company_name} company stage startup growth scale funding series "
+            "revenue model pricing plans subscription business model"
+        ),
+        "market": (
+            "{company_name} target market customer segments {business_model} "
+            "demographics industries verticals buyer persona"
+        ),
         "competitors": (
             '{company_name} vs alternatives comparison "{product_category}" '
             "competing products similar to {company_name} {industry} landscape players"
         ),
-        "tech_stack": (
-            "{company_domain} site:stackshare.io OR site:github.com OR site:builtwith.com "
-            "technology infrastructure {company_name} engineering blog tech stack"
+        "metrics": (
+            "{company_name} north star metric KPIs ARR revenue users customers "
+            "growth rate retention churn MRR user count DAU MAU"
         ),
         "pricing": (
             '{company_name} pricing plans subscription tiers freemium enterprise sales '
@@ -84,7 +137,7 @@ class EnrichmentService:
         ),
         "recent": (
             '{company_name} {current_year} announcement funding round product launch '
-            'partnership acquisition "latest news" -advertisement -sponsored'
+            'partnership acquisition "latest news" key differentiator unique value'
         ),
     }
 
@@ -307,33 +360,33 @@ class EnrichmentService:
         Returns:
             Next search type or None if sufficient data
         """
-        # Analyze gaps
-        has_competitors = bool(current_data.get("competitors"))
-        has_pricing = bool(current_data.get("pricing_model") or current_data.get("pricing"))
-        has_tech = bool(current_data.get("tech_stack") or current_data.get("platforms"))
-        has_recent = bool(current_data.get("recent_news") or current_data.get("funding"))
+        # Phase 1: Product description (most critical)
+        if not current_data.get("product_description"):
+            return "product"
 
-        is_b2b = company_info.get("type", "").lower() == "b2b"
-        is_saas = "saas" in str(company_info.get("description", "")).lower()
-
-        # Priority decision tree from PM expert
-        if not has_competitors and is_b2b:
+        # Phase 2: Core business info
+        if not current_data.get("company_stage"):
+            return "business_model"
+        if not current_data.get("target_market"):
+            return "market"
+        if not current_data.get("competitors"):
             return "competitors"
-        elif not has_pricing and is_saas:
+        if not current_data.get("north_star_metric"):
+            return "metrics"
+
+        # Phase 3: Additional details
+        if not current_data.get("pricing_model"):
             return "pricing"
-        elif not has_tech and "tech" in str(company_info.get("description", "")).lower():
-            return "tech_stack"
-        elif not has_recent and self._calculate_coverage(current_data) < 0.5:
-            return "recent"
+        if not current_data.get("user_count"):
+            return "metrics"
+        if not current_data.get("key_differentiator"):
+            return "competitors"
 
         # Check if we have minimum viable context
         coverage = self._calculate_coverage(current_data)
         if coverage < 0.4:
-            # Too little data, try to get anything
-            if not has_competitors:
-                return "competitors"
-            elif not has_recent:
-                return "recent"
+            # Too little data, try recent info
+            return "recent"
 
         return None  # Have enough data
 
@@ -399,7 +452,7 @@ class EnrichmentService:
         search_type: str
     ) -> Dict[str, Any]:
         """
-        Parse search results and extract structured data.
+        Parse search results using GPT-5 structured output.
 
         Args:
             content: Search result content
@@ -408,12 +461,56 @@ class EnrichmentService:
         Returns:
             Parsed and structured data
         """
-        parser = EnrichmentParser()
-        return parser.parse_search_results(content, search_type)
+        client = OpenAI()
+
+        # For primary search, get everything at once
+        if search_type == "primary":
+            try:
+                response = client.responses.parse(
+                    model="gpt-5",
+                    input=[
+                        {
+                            "role": "system",
+                            "content": """Extract company information from search results.
+                            Focus on finding:
+                            - What the product/company actually does (product_description)
+                            - Company stage (funding, IPO, acquisition status)
+                            - Target customers and market
+                            - Main competitors (company names only)
+                            - Key metrics they track
+                            - Basic facts (website, team size, users, pricing)
+                            Only include information explicitly mentioned."""
+                        },
+                        {"role": "user", "content": f"Extract company info:\n{content[:8000]}"}
+                    ],
+                    text_format=FullEnrichment,
+                    reasoning={"effort": "medium"}
+                )
+
+                result = response.output_parsed.model_dump(exclude_none=True)
+
+                # Limit competitors to 5
+                if 'competitors' in result and result['competitors']:
+                    result['competitors'] = result['competitors'][:5]
+
+                return result
+
+            except Exception as e:
+                logger.warning(f"GPT-5 extraction failed: {e}")
+                return {}
+
+        # For targeted searches, use simpler extraction or return empty
+        else:
+            # Could implement phase-specific extraction here if needed
+            return {}
 
     def _calculate_coverage(self, data: Dict[str, Any]) -> float:
         """
-        Calculate data coverage based on weighted fields.
+        Calculate data coverage based on phased approach.
+
+        Phase 1 (20%): Product description
+        Phase 2 (40%): Core business info (stage, market, competitors, metric)
+        Phase 3 (40%): Additional details (website, team, pricing, users, differentiator)
 
         Args:
             data: Current data
@@ -423,18 +520,21 @@ class EnrichmentService:
         """
         total_score = 0.0
 
-        for category, weight in self.FIELD_WEIGHTS.items():
-            category_score = 0.0
-            required_fields = self.REQUIRED_FIELDS[category]
+        # Phase 1: Product description (20%)
+        if data.get('product_description'):
+            total_score += 0.20
 
-            if required_fields:
-                found_fields = sum(
-                    1 for field in required_fields
-                    if data.get(field) is not None
-                )
-                category_score = found_fields / len(required_fields)
+        # Phase 2: Core business info (40% total, 10% each)
+        phase2_fields = ['company_stage', 'target_market', 'competitors', 'north_star_metric']
+        for field in phase2_fields:
+            if data.get(field):
+                total_score += 0.10
 
-            total_score += category_score * weight
+        # Phase 3: Additional details (40% total, 8% each)
+        phase3_fields = ['website', 'team_size', 'pricing_model', 'user_count', 'key_differentiator']
+        for field in phase3_fields:
+            if data.get(field):
+                total_score += 0.08
 
         return min(1.0, total_score)
 

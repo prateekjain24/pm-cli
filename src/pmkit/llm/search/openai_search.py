@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 from typing import Any, Optional
 
-from openai import AsyncOpenAI, OpenAIError
+from openai import OpenAI, OpenAIError
 
 from pmkit.config.models import LLMProviderConfig
 from pmkit.llm.models import SearchResult
@@ -59,8 +59,8 @@ class OpenAISearchProvider(BaseSearchProvider):
         
         super().__init__(api_key=api_key, **kwargs)
         
-        # Initialize OpenAI client
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        # Initialize OpenAI client (synchronous)
+        self.client = OpenAI(api_key=self.api_key)
         
         # Default model for search - GPT-5 supports web search via Responses API
         # Note: GPT-5 uses automatic tool selection (cannot force with tool_choice)
@@ -96,20 +96,15 @@ class OpenAISearchProvider(BaseSearchProvider):
         options = options or SearchOptions()
         
         try:
-            # Use native Responses API with web search tool
-            # Note: GPT-5 Responses API doesn't support temperature parameter
-            response = await self.client.responses.create(
+            # Use native Responses API with web search tool (synchronous)
+            # Run synchronous call in thread pool to maintain async interface
+            response = await asyncio.to_thread(
+                self.client.responses.create,
                 model=self.model,
                 tools=[{"type": "web_search"}],
                 input=query,
-                max_output_tokens=options.extras.get("max_tokens", 1500) if options.extras else 1500,
+                reasoning={"effort": "medium"}  # Add reasoning for better results
             )
-            
-            # Wait for completion if needed
-            if hasattr(response, 'status'):
-                while response.status == "in_progress":
-                    await asyncio.sleep(0.5)
-                    response = await self.client.responses.retrieve(response.id)
             
             # Parse the response
             return self._parse_response(response, query)
@@ -133,31 +128,30 @@ class OpenAISearchProvider(BaseSearchProvider):
             Parsed SearchResult
         """
         try:
-            # Extract content from response
-            content = ""
+            # Direct access to output_text as per documentation
+            content = response.output_text or ""
+
+            # Extract citations if available in the response
             citations = []
-            
-            # Responses API format
-            if hasattr(response, 'output_text'):
-                content = response.output_text or ""
-            elif hasattr(response, 'output'):
-                content = response.output or ""
-            
-            # Extract citations if available in response metadata
-            # The Responses API includes citations automatically
-            # but the exact format may vary
-            if hasattr(response, 'annotations'):
-                for annotation in response.annotations:
-                    if hasattr(annotation, 'url'):
-                        citations.append(annotation.url)
-            
+            if hasattr(response, 'output') and isinstance(response.output, list):
+                for item in response.output:
+                    if isinstance(item, dict):
+                        # Check for message with annotations
+                        if item.get('type') == 'message' and 'content' in item:
+                            for content_item in item.get('content', []):
+                                for annotation in content_item.get('annotations', []):
+                                    if annotation.get('type') == 'url_citation':
+                                        url = annotation.get('url', '')
+                                        if url and url not in citations:
+                                            citations.append(url)
+
             # Fallback: extract URLs from content if no explicit citations
             if not citations and content:
                 import re
                 url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
                 found_urls = re.findall(url_pattern, content)
                 citations = list(set(found_urls))[:10]  # Dedupe and limit
-            
+
             return SearchResult(
                 content=content,
                 citations=citations,

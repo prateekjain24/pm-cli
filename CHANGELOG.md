@@ -2,7 +2,21 @@
 
 All notable changes to PM-Kit are documented in this file.
 
-## [0.1.0] - 2025-01-11
+## [0.1.0] - 2025-01-14
+
+### Changed
+
+#### PMKIT-029: Fixed enrichment with GPT-5 structured extraction and web search
+- Replaced broken regex parsing with GPT-5 structured outputs
+- Fixed OpenAI web search to use synchronous Responses API correctly
+- Changed from AsyncOpenAI to OpenAI client with asyncio.to_thread for async interface
+- Implemented phased enrichment matching UI (Phase 1: description, Phase 2: core info, Phase 3: details)
+- Updated coverage calculation to use phased approach (20% Phase 1, 40% Phase 2, 40% Phase 3)
+- Added Pydantic models for structured extraction (FullEnrichment, Phase1/2/3Enrichment)
+- Fixed product description extraction that was showing "To be enriched"
+- Updated field mapping in onboarding to use new phased field names
+- Tested with PropertyGuru achieving 92% coverage with single search
+- Removed over-engineered industry templates and known companies database
 
 ### Added
 

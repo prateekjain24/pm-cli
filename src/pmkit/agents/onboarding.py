@@ -398,8 +398,7 @@ class OnboardingAgent:
                         updated_data = self.manual_form.review_and_edit(
                             review_data,
                             company_type=self.state.get('company_type', 'b2b'),
-                            required_only=False,
-                            confidence_scores=result.confidence_scores  # Pass confidence for display
+                            required_only=False
                         )
 
                         self.state.update(updated_data)
@@ -870,21 +869,21 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
         """
         state_data = {}
 
-        # Map enriched fields to state fields
+        # Map enriched fields to state fields - using new phased fields
         field_mapping = {
-            'industry': 'industry',
-            'business_model': 'company_type',
-            'competitors': 'competitors',
-            'target_customer': 'target_market',
-            'funding': 'funding_stage',
+            # Phase 1
+            'product_description': 'product_description',
+            # Phase 2
             'company_stage': 'company_stage',
+            'target_market': 'target_market',
+            'competitors': 'competitors',
+            'north_star_metric': 'north_star_metric',
+            # Phase 3
+            'website': 'website',
+            'team_size': 'team_size',
             'pricing_model': 'pricing_model',
-            'tech_stack': 'tech_stack',
-            'platforms': 'platforms',
-            'recent_news': 'recent_updates',
-            'partnerships': 'key_partners',
-            'core_offering': 'value_proposition',
-            'integrations': 'integrations',
+            'user_count': 'user_count',
+            'key_differentiator': 'key_differentiator',
         }
 
         for enriched_field, state_field in field_mapping.items():
