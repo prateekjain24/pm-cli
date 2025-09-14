@@ -274,6 +274,68 @@ class CompetitorSmartValidator(SmartValidator):
         return company_name not in competitor_names
 
 
+class CompanyStageSmartValidator(SmartValidator):
+    """Smart validator for company stage with auto-correction."""
+
+    def __init__(self):
+        super().__init__()
+        self.rules = [
+            # Autocorrect common mistakes
+            ValidationRule(
+                level='autocorrect',
+                check=None,
+                message='',
+                fix=self._autocorrect_stage,
+            ),
+            # Error validation
+            ValidationRule(
+                level='error',
+                check=lambda x, ctx: x in ['idea', 'seed', 'growth', 'mature'],
+                message="Stage must be one of: idea, seed, growth, mature",
+            ),
+        ]
+
+    def _autocorrect_stage(self, value: str) -> str:
+        """Auto-correct common stage mistakes."""
+        if not isinstance(value, str):
+            return value
+
+        value_lower = value.lower().strip()
+
+        # Map common mistakes to valid values
+        corrections = {
+            'scale': 'growth',
+            'scaling': 'growth',
+            'series a': 'seed',
+            'series b': 'seed',
+            'series c': 'growth',
+            'series d': 'growth',
+            'ipo': 'mature',
+            'public': 'mature',
+            'enterprise': 'mature',
+            'early': 'seed',
+            'startup': 'seed',
+            'pre-seed': 'idea',
+            'preseed': 'idea',
+            'concept': 'idea',
+            'mvp': 'seed',
+            'pmf': 'growth',
+            'product-market fit': 'growth',
+            'established': 'mature',
+        }
+
+        # Check for exact matches first
+        if value_lower in ['idea', 'seed', 'growth', 'mature']:
+            return value_lower
+
+        # Check for common mistakes
+        for mistake, correct in corrections.items():
+            if mistake in value_lower:
+                return correct
+
+        return value
+
+
 class TeamSizeSmartValidator(SmartValidator):
     """Smart validator for team size with cross-field validation."""
 

@@ -10,13 +10,19 @@ All notable changes to PM-Kit are documented in this file.
 - **Removed 240+ lines of unused EnrichmentParser class** (regex-based extraction)
 - **Simplified _convert_enrichment_to_state** - removed dict checking, direct assignment
 - **Fixed infinite "Please enter Y or N" loop** - replaced Rich's Confirm.ask with prompt_toolkit to avoid library conflict
+- **Fixed company_stage validation errors** - comprehensive fix including:
+  - Added `Literal["idea", "seed", "growth", "mature"]` validation to Pydantic models
+  - Created choice-based selector with descriptions in manual_input
+  - Added CompanyStageSmartValidator with auto-correction for common mistakes
+  - Removed brittle keyword matching in onboarding.py
+  - Fixed invalid "scaling" value in templates.py
 - **Fixed state updates** - immediate update after enrichment to avoid redundant manual collection
 - Fixed OpenAI web search to use synchronous Responses API correctly
 - Changed to medium effort and 5-minute timeout for better search quality
 - Fixed imports to use correct SearchOptions from search.base
 - Tested with PropertyGuru achieving 92% coverage (9/10 fields extracted)
 - All enriched fields now display correctly including key_differentiator
-- All 21 manual_input tests passing after fix
+- All 21 manual_input tests passing after fixes
 
 ### Added
 

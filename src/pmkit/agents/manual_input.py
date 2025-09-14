@@ -115,7 +115,7 @@ FIELD_DEFINITIONS = {
         required=False,
         choices=['idea', 'seed', 'growth', 'mature'],
         default='growth',
-        help_text='Current stage of your company',
+        help_text='Company stage: idea (pre-product), seed (seeking PMF), growth (scaling), mature (market leader)',
         phase=2,
     ),
     'target_market': FieldMetadata(
@@ -573,9 +573,21 @@ class ManualInputForm:
 
         # Handle different field types
         if metadata.field_type == 'choice' and metadata.choices:
-            # Show choices
-            for i, choice in enumerate(metadata.choices, 1):
-                self.console.print(f"  {i}. {choice}")
+            # Show choices with descriptions for company_stage
+            if metadata.name == 'company_stage':
+                stage_descriptions = {
+                    'idea': 'Pre-product, concept phase',
+                    'seed': 'Early product, seeking product-market fit',
+                    'growth': 'Established product, scaling revenue',
+                    'mature': 'Market leader, optimizing operations'
+                }
+                for i, choice in enumerate(metadata.choices, 1):
+                    desc = stage_descriptions.get(choice, '')
+                    self.console.print(f"  {i}. {choice} - {desc}")
+            else:
+                # Show choices normally for other fields
+                for i, choice in enumerate(metadata.choices, 1):
+                    self.console.print(f"  {i}. {choice}")
 
             choice_input = self.session.prompt(
                 HTML(f"<ansigreen>{metadata.display_name}: </ansigreen>"),

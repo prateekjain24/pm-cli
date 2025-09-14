@@ -571,14 +571,9 @@ class OnboardingAgent:
             # Determine company type and stage from state
             company_type = 'B2B' if self.state.get('business_model', '').upper() == 'B2B' else 'B2C'
 
-            # Map funding to stage
-            funding = self.state.get('funding_stage', 'Series A').lower()
-            if 'seed' in funding or 'pre' in funding:
-                company_stage = 'seed'
-            elif 'series c' in funding or 'series d' in funding or 'ipo' in funding:
-                company_stage = 'scale'
-            else:
-                company_stage = 'growth'
+            # Use company_stage from state (already validated/enriched)
+            # Default to 'growth' if not set
+            company_stage = self.state.get('company_stage', 'growth')
 
             # Create and run OKR wizard
             okr_wizard = OKRWizard(
@@ -802,13 +797,8 @@ class OnboardingAgent:
 
         content_lower = content.lower()
 
-        # Try to detect company stage
-        if any(word in content_lower for word in ['startup', 'seed', 'series a']):
-            enriched['company_stage'] = 'seed'
-        elif any(word in content_lower for word in ['growth', 'series b', 'series c']):
-            enriched['company_stage'] = 'growth'
-        elif any(word in content_lower for word in ['public', 'fortune', 'enterprise']):
-            enriched['company_stage'] = 'mature'
+        # Company stage is now handled by LLM enrichment with proper validation
+        # No more brittle keyword matching
 
         # Try to extract competitors (simplified)
         # In production, use proper NER or LLM extraction

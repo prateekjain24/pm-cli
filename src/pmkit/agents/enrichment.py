@@ -17,7 +17,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from pmkit.config.models import LLMProviderConfig
@@ -57,7 +57,7 @@ class Phase1Enrichment(BaseModel):
 
 class Phase2Enrichment(BaseModel):
     """Phase 2: Core business information."""
-    company_stage: Optional[str] = None
+    company_stage: Optional[Literal["idea", "seed", "growth", "mature"]] = None
     target_market: Optional[str] = None
     competitors: List[str] = Field(default_factory=list)
     north_star_metric: Optional[str] = None
@@ -78,7 +78,7 @@ class FullEnrichment(BaseModel):
     product_description: Optional[str] = None
 
     # Phase 2
-    company_stage: Optional[str] = None
+    company_stage: Optional[Literal["idea", "seed", "growth", "mature"]] = None
     target_market: Optional[str] = None
     competitors: List[str] = Field(default_factory=list)
     north_star_metric: Optional[str] = None
