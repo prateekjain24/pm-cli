@@ -98,17 +98,24 @@ class OpenAISearchProvider(BaseSearchProvider):
         try:
             # Use native Responses API with web search tool (synchronous)
             # Run synchronous call in thread pool to maintain async interface
-            response = await asyncio.to_thread(
-                self.client.responses.create,
-                model=self.model,
-                tools=[{"type": "web_search"}],
-                input=query,
-                reasoning={"effort": "medium"}  # Add reasoning for better results
+            # Add timeout to prevent hanging
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.responses.create,
+                    model=self.model,
+                    tools=[{"type": "web_search"}],
+                    input=query,
+                    reasoning={"effort": "low"}  # Use low effort for faster response
+                ),
+                timeout=120.0  # 2 minute timeout
             )
             
             # Parse the response
             return self._parse_response(response, query)
             
+        except asyncio.TimeoutError:
+            logger.error(f"OpenAI search timed out after 120 seconds")
+            raise SearchTimeoutError("openai", 120)
         except OpenAIError as e:
             logger.error(f"OpenAI API error: {e}")
             raise SearchUnavailableError("openai", str(e))

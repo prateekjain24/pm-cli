@@ -475,11 +475,15 @@ class EnrichmentService:
                             Focus on finding:
                             - What the product/company actually does (product_description)
                             - Company stage (funding, IPO, acquisition status)
-                            - Target customers and market
-                            - Main competitors (company names only)
-                            - Key metrics they track
-                            - Basic facts (website, team size, users, pricing)
-                            Only include information explicitly mentioned."""
+                            - Target customers and market (target_market)
+                            - Main competitors (competitors - company names only)
+                            - Key metrics they track (north_star_metric)
+                            - Website URL if mentioned (website)
+                            - Number of employees or team size (team_size)
+                            - Pricing structure or model (pricing_model)
+                            - Number of users, customers, or MAU (user_count)
+                            - Main differentiator or competitive advantage (key_differentiator)
+                            Only include information explicitly mentioned in the text."""
                         },
                         {"role": "user", "content": f"Extract company info:\n{content[:8000]}"}
                     ],

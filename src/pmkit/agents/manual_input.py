@@ -382,9 +382,9 @@ class ManualInputForm:
     ) -> None:
         """Display review table with status indicators."""
         table = Table(title="Review Enrichment Results", box=box.ROUNDED)
-        table.add_column("Status", style="cyan", width=6)
-        table.add_column("Field", style="white")
-        table.add_column("Value", style="white")
+        table.add_column("Status", style="cyan", width=8)
+        table.add_column("Field", style="white", width=20)
+        table.add_column("Value", style="white", width=100, overflow="fold")
 
         status_icons = {
             FieldStatus.CONFIRMED: "✅",
@@ -415,13 +415,18 @@ class ManualInputForm:
 
                 # Format value display
                 if isinstance(value, list):
-                    value_str = ", ".join(str(v) for v in value)
+                    value_str = ", ".join(str(v) for v in value[:5])  # Limit to 5 items
+                    if len(value) > 5:
+                        value_str += f" ... (+{len(value)-5} more)"
                 elif not value:
                     value_str = "[dim]Not set[/dim]"
                     if status == FieldStatus.MISSING:
                         value_str = "[red]Missing - Required[/red]"
                 else:
                     value_str = str(value)
+                    # Truncate very long values
+                    if len(value_str) > 200:
+                        value_str = value_str[:197] + "..."
                     if status == FieldStatus.REVIEW:
                         value_str = f"{value_str} [yellow][Edit?][/yellow]"
 
