@@ -401,6 +401,7 @@ class OnboardingAgent:
                             required_only=False
                         )
 
+                        # Update state immediately with enriched data
                         self.state.update(updated_data)
 
                         # Store remaining searches for potential later use
@@ -420,7 +421,7 @@ class OnboardingAgent:
                     self.console.print(self.prompts.ENRICHMENT_NOT_FOUND)
                     await self._manual_enrichment()
 
-        # These are now optional - enrichment may have already collected them
+        # Only ask for manual input if not already enriched
         if not self.state.get('competitors'):
             await self._collect_competitors()
 
@@ -860,6 +861,7 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
     def _convert_enrichment_to_state(self, result: EnrichmentResult) -> Dict[str, Any]:
         """
         Convert EnrichmentResult to state format for the onboarding flow.
+        Simple direct mapping since GPT-5 returns plain values.
 
         Args:
             result: EnrichmentResult from the EnrichmentService
@@ -869,7 +871,7 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
         """
         state_data = {}
 
-        # Map enriched fields to state fields - using new phased fields
+        # Direct field mapping - GPT-5 returns plain values, not dicts
         field_mapping = {
             # Phase 1
             'product_description': 'product_description',
@@ -886,34 +888,10 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
             'key_differentiator': 'key_differentiator',
         }
 
+        # Simple direct assignment - no dict checking needed
         for enriched_field, state_field in field_mapping.items():
             if enriched_field in result.data:
-                data = result.data[enriched_field]
-
-                # Extract value from dict format
-                if isinstance(data, dict) and 'value' in data:
-                    value = data['value']
-
-                    # Special handling for specific fields
-                    if state_field == 'company_type' and value:
-                        # Normalize to lowercase
-                        value = str(value).lower()
-                        if 'b2b' in value:
-                            state_data[state_field] = 'b2b'
-                        elif 'b2c' in value:
-                            state_data[state_field] = 'b2c'
-                        elif 'b2b2c' in value:
-                            state_data[state_field] = 'b2b2c'
-                    elif state_field == 'competitors' and isinstance(value, list):
-                        # Limit to top 5 competitors
-                        state_data[state_field] = value[:5]
-                    else:
-                        state_data[state_field] = value
-                elif data:  # Simple value
-                    state_data[state_field] = data
-
-        # Store confidence scores for display in review
-        state_data['_confidence_scores'] = result.confidence_scores
+                state_data[state_field] = result.data[enriched_field]
 
         return state_data
 

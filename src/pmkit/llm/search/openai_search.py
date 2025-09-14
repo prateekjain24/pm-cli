@@ -105,17 +105,17 @@ class OpenAISearchProvider(BaseSearchProvider):
                     model=self.model,
                     tools=[{"type": "web_search"}],
                     input=query,
-                    reasoning={"effort": "low"}  # Use low effort for faster response
+                    reasoning={"effort": "medium"}  # Use medium effort for better quality
                 ),
-                timeout=120.0  # 2 minute timeout
+                timeout=300.0  # 5 minute timeout
             )
             
             # Parse the response
             return self._parse_response(response, query)
             
         except asyncio.TimeoutError:
-            logger.error(f"OpenAI search timed out after 120 seconds")
-            raise SearchTimeoutError("openai", 120)
+            logger.error(f"OpenAI search timed out after 300 seconds")
+            raise SearchTimeoutError("openai", 300)
         except OpenAIError as e:
             logger.error(f"OpenAI API error: {e}")
             raise SearchUnavailableError("openai", str(e))

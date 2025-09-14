@@ -43,8 +43,8 @@ class LLMProviderConfig(BaseModel):
         # Default models per provider (latest as of August 2025)
         defaults = {
             'openai': 'gpt-5',  # GPT-5 launched August 7, 2025
-            'anthropic': 'claude-3-5-sonnet-20241022',
-            'gemini': 'gemini-2.0-flash-exp',
+            'anthropic': 'claude-4-sonnet',
+            'gemini': 'gemini-2.5-flash',
             'ollama': 'llama3.2:latest',
         }
         
