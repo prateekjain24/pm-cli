@@ -171,11 +171,10 @@ class ConfigLoader:
             "LLM_TIMEOUT": ("llm", "timeout"),
             "LLM_MAX_RETRIES": ("llm", "max_retries"),
             "LLM_BASE_URL": ("llm", "base_url"),
-            
-            # API Keys (provider-specific handling in models)
-            "OPENAI_API_KEY": ("llm", "api_key"),
-            "ANTHROPIC_API_KEY": ("llm", "api_key"),
-            "GOOGLE_API_KEY": ("llm", "api_key"),
+
+            # API Keys are handled directly by LLMProviderConfig model
+            # based on the provider setting, so we don't map them here
+            # to avoid overwriting each other
             
             # Cache settings
             "PMKIT_CACHE_ENABLED": ("cache", "enabled"),
@@ -361,14 +360,8 @@ class ConfigLoader:
         field_lower = field_path.lower()
         
         if "api_key" in field_lower:
-            if "openai" in field_lower:
-                return "Set OPENAI_API_KEY environment variable"
-            elif "anthropic" in field_lower:
-                return "Set ANTHROPIC_API_KEY environment variable"
-            elif "google" in field_lower or "gemini" in field_lower:
-                return "Set GOOGLE_API_KEY environment variable"
-            else:
-                return "Set the appropriate API key environment variable"
+            # API keys are loaded directly from environment based on provider
+            return "Set the appropriate API key environment variable (OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY) based on your configured provider"
         
         if "url" in field_lower:
             return "Ensure the URL is valid and includes the protocol (https://)"

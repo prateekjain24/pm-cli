@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr, field_validator, ValidationInfo
 
 
 class LLMProviderConfig(BaseModel):
@@ -50,34 +50,25 @@ class LLMProviderConfig(BaseModel):
         
         return defaults.get(provider, 'gpt-5')
     
-    @field_validator('api_key')
-    @classmethod
-    def validate_api_key(cls, v: Optional[SecretStr], info: Any) -> Optional[SecretStr]:
-        """Validate API key and attempt to load from environment if not provided."""
-        if v is not None:
-            return v
-        
-        # Try to get from environment based on provider
-        provider = info.data.get('provider', 'openai')
-        env_key_map = {
-            'openai': 'OPENAI_API_KEY',
-            'anthropic': 'ANTHROPIC_API_KEY',
-            'gemini': 'GOOGLE_API_KEY',
-            'ollama': None,  # Ollama typically doesn't need API key for local
-        }
-        
-        env_key = env_key_map.get(provider)
-        if env_key:
-            env_value = os.getenv(env_key)
-            if env_value:
-                return SecretStr(env_value)
-        
-        # For ollama, API key is optional
-        if provider == 'ollama':
-            return None
-            
-        # For other providers, warn but don't fail (might be set later)
-        return None
+    def __init__(self, **data):
+        """Initialize and set API key from environment if not provided."""
+        # If api_key is not provided, set it from environment based on provider
+        if 'api_key' not in data or data.get('api_key') is None:
+            provider = data.get('provider', 'openai')
+            env_key_map = {
+                'openai': 'OPENAI_API_KEY',
+                'anthropic': 'ANTHROPIC_API_KEY',
+                'gemini': 'GOOGLE_API_KEY',
+                'ollama': None,
+            }
+
+            env_key = env_key_map.get(provider)
+            if env_key:
+                env_value = os.getenv(env_key)
+                if env_value:
+                    data['api_key'] = SecretStr(env_value)
+
+        super().__init__(**data)
 
 
 class CacheConfig(BaseModel):
