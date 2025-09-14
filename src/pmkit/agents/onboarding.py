@@ -50,6 +50,9 @@ from pmkit.agents.interactive_prompt import (
 # Import the new manual input form for review/edit pattern
 from pmkit.agents.manual_input import ManualInputForm
 
+# Import the new enrichment service for agentic search
+from pmkit.agents.enrichment import EnrichmentService, EnrichmentResult
+
 logger = get_logger(__name__)
 
 
@@ -318,9 +321,12 @@ class OnboardingAgent:
 
     async def _phase2_enrichment(self) -> None:
         """
-        Phase 2: Auto-enrich with web search.
+        Phase 2: Auto-enrich with web search using agentic behavior.
 
-        This phase attempts to gather additional context automatically.
+        This phase uses the EnrichmentService with the 3-2 Rule:
+        - Primary search + up to 2 adaptive searches
+        - Stops at 70% coverage to save searches
+        - Shows real-time progress with confidence indicators
         """
         self.console.print("\n" + self.prompts.PHASE_INTRO[2])
 
@@ -329,56 +335,76 @@ class OnboardingAgent:
             self.console.print(self.prompts.ENRICHMENT_NOT_FOUND)
             await self._manual_enrichment()
         else:
-            # Try to enrich company data
-            company_name = self.state.get('company_name')
+            # Prepare company info for enrichment
+            company_info = {
+                'name': self.state.get('company_name', ''),
+                'domain': self.state.get('website', ''),
+                'description': self.state.get('product_description', ''),
+                'type': self.state.get('company_type', 'b2b'),
+                'product_name': self.state.get('product_name', ''),
+            }
 
+            # Initialize enrichment service
+            enricher = EnrichmentService(self.grounding)
+
+            # Progress tracking with Rich
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
+                "[progress.percentage]{task.percentage:>3.0f}%",
                 console=self.console
             ) as progress:
                 task = progress.add_task(
-                    self.prompts.ENRICHMENT_SEARCHING.format(company_name=company_name),
-                    total=None
+                    "🔍 Starting enrichment...",
+                    total=100
                 )
 
+                # Progress callback for real-time updates
+                async def update_progress(message: str, percent: int):
+                    progress.update(task, description=message, completed=percent)
+
                 try:
-                    # Search for company information
-                    search_query = self.prompt_library.get_prompt(
-                        'COMPANY_ENRICHMENT',
-                        company_name=company_name
+                    # Run enrichment with agentic behavior
+                    result: EnrichmentResult = await enricher.enrich_company(
+                        company_info,
+                        progress_callback=update_progress
                     )
 
-                    search_result = await self.grounding.search(
-                        search_query,
-                        SearchOptions(max_results=5)
-                    )
+                    # Show enrichment summary
+                    self._show_enrichment_summary(result)
 
-                    if search_result and search_result.content:
-                        # Parse enriched data
-                        enriched_data = self._parse_enrichment(search_result.content)
+                    # Convert enriched data to state format
+                    enriched_state = self._convert_enrichment_to_state(result)
 
-                        # Show found data
-                        progress.stop()
+                    if result.coverage >= 0.4:  # Minimum 40% coverage to proceed
+                        # Merge with existing state
+                        review_data = {**self.state, **enriched_state}
+
+                        # Review and edit with confidence indicators
                         self.console.print(
-                            self.prompts.ENRICHMENT_FOUND.format(company_name=company_name)
+                            f"\n[cyan]Found data with {result.coverage*100:.0f}% coverage. "
+                            f"Let's review what we found:[/cyan]"
                         )
-
-                        # Use the new review and edit pattern for partial enrichment
-                        # This shows all fields with status indicators (✅ ⚠️ ❌)
-                        review_data = {**self.state, **enriched_data}
 
                         updated_data = self.manual_form.review_and_edit(
                             review_data,
                             company_type=self.state.get('company_type', 'b2b'),
-                            required_only=False
+                            required_only=False,
+                            confidence_scores=result.confidence_scores  # Pass confidence for display
                         )
 
                         self.state.update(updated_data)
+
+                        # Store remaining searches for potential later use
+                        self.state['_remaining_searches'] = result.remaining_searches
+
                     else:
-                        progress.stop()
-                        self.console.print(self.prompts.ENRICHMENT_NOT_FOUND)
-                        await self._manual_enrichment()
+                        # Coverage too low, fall back to manual
+                        self.console.print(
+                            f"[yellow]Coverage only {result.coverage*100:.0f}%. "
+                            f"Let's gather more information manually.[/yellow]"
+                        )
+                        await self._manual_enrichment(prefilled=enriched_state)
 
                 except Exception as e:
                     logger.warning(f"Enrichment failed: {e}")
@@ -386,11 +412,13 @@ class OnboardingAgent:
                     self.console.print(self.prompts.ENRICHMENT_NOT_FOUND)
                     await self._manual_enrichment()
 
-        # Collect or confirm competitors
-        await self._collect_competitors()
+        # These are now optional - enrichment may have already collected them
+        if not self.state.get('competitors'):
+            await self._collect_competitors()
 
-        # Suggest north star metric
-        await self._suggest_metric()
+        # Suggest metric only if not already set
+        if not self.state.get('north_star_metric'):
+            await self._suggest_metric()
 
     async def _phase3_advanced(self) -> None:
         """
@@ -770,6 +798,109 @@ class OnboardingAgent:
         # In production, use proper NER or LLM extraction
 
         return enriched
+
+    def _show_enrichment_summary(self, result: EnrichmentResult) -> None:
+        """
+        Display a beautiful summary of enrichment results.
+
+        Args:
+            result: EnrichmentResult from the EnrichmentService
+        """
+        # Build coverage bar
+        coverage_bar = '█' * int(result.coverage * 10) + '░' * (10 - int(result.coverage * 10))
+
+        # Format found data with confidence indicators
+        found_items = []
+        for field, data in result.data.items():
+            if isinstance(data, dict) and 'value' in data:
+                confidence = data.get('confidence', 'LOW')
+                emoji = {'HIGH': '🟢', 'MEDIUM': '🟡', 'LOW': '🔴'}.get(confidence, '⚪')
+                value = data['value']
+                if isinstance(value, list):
+                    value = ', '.join(str(v) for v in value[:3])  # Show first 3
+                found_items.append(f"  {emoji} {field}: {value}")
+            elif data:  # Simple value
+                found_items.append(f"  ✓ {field}: {data}")
+
+        found_text = '\n'.join(found_items) if found_items else "  No data found"
+
+        # Create summary panel
+        summary = Panel(
+            f"""[bold green]✅ Enrichment Complete[/bold green]
+
+Coverage: {coverage_bar} {result.coverage*100:.0f}%
+Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
+
+[bold]Found Data:[/bold]
+{found_text}
+
+[dim]Remaining searches: {result.remaining_searches} (saved for later)[/dim]""",
+            title="🎯 Company Context Enriched",
+            title_align="left",
+            border_style="green",
+            padding=(1, 2),
+        )
+        self.console.print(summary)
+
+    def _convert_enrichment_to_state(self, result: EnrichmentResult) -> Dict[str, Any]:
+        """
+        Convert EnrichmentResult to state format for the onboarding flow.
+
+        Args:
+            result: EnrichmentResult from the EnrichmentService
+
+        Returns:
+            Dictionary suitable for state update
+        """
+        state_data = {}
+
+        # Map enriched fields to state fields
+        field_mapping = {
+            'industry': 'industry',
+            'business_model': 'company_type',
+            'competitors': 'competitors',
+            'target_customer': 'target_market',
+            'funding': 'funding_stage',
+            'company_stage': 'company_stage',
+            'pricing_model': 'pricing_model',
+            'tech_stack': 'tech_stack',
+            'platforms': 'platforms',
+            'recent_news': 'recent_updates',
+            'partnerships': 'key_partners',
+            'core_offering': 'value_proposition',
+            'integrations': 'integrations',
+        }
+
+        for enriched_field, state_field in field_mapping.items():
+            if enriched_field in result.data:
+                data = result.data[enriched_field]
+
+                # Extract value from dict format
+                if isinstance(data, dict) and 'value' in data:
+                    value = data['value']
+
+                    # Special handling for specific fields
+                    if state_field == 'company_type' and value:
+                        # Normalize to lowercase
+                        value = str(value).lower()
+                        if 'b2b' in value:
+                            state_data[state_field] = 'b2b'
+                        elif 'b2c' in value:
+                            state_data[state_field] = 'b2c'
+                        elif 'b2b2c' in value:
+                            state_data[state_field] = 'b2b2c'
+                    elif state_field == 'competitors' and isinstance(value, list):
+                        # Limit to top 5 competitors
+                        state_data[state_field] = value[:5]
+                    else:
+                        state_data[state_field] = value
+                elif data:  # Simple value
+                    state_data[state_field] = data
+
+        # Store confidence scores for display in review
+        state_data['_confidence_scores'] = result.confidence_scores
+
+        return state_data
 
     def _display_enriched_data(self, data: Dict[str, Any]) -> None:
         """
