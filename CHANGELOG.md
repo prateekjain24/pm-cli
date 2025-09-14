@@ -288,6 +288,22 @@ All notable changes to PM-Kit are documented in this file.
 - Wrote comprehensive test suite with 39 tests (all passing)
 - Delivers delightful, PM-focused experience that gets users to value quickly
 
+#### PMKIT-025: Create manual input fallback (COMPLETE)
+- Created ManualInputForm class with review_and_edit pattern for partial enrichment
+- Implemented visual status indicators (✅ confirmed, ⚠️ review needed, ❌ missing)
+- Built smart validators with three levels: error (blocking), warning (advisory), autocorrect (automatic fixes)
+- Added cross-field validation (e.g., team size vs company stage alignment)
+- Implemented auto-save after every field change with atomic writes
+- Added smart resume capability that jumps to next empty required field
+- Created staleness detection warning for saved data older than 7 days
+- Integrated seamlessly with OnboardingAgent maintaining backward compatibility
+- Added comprehensive test suite with 21 tests covering all scenarios
+- Optimized for editing what automation got wrong, not entering everything from scratch
+- Delivers delightful experience for PMs when automated enrichment fails
+- Fixed all test failures in broader test suite (484 tests passing)
+- Fixed asyncio issues in tests by properly mocking ManualInputForm methods
+- Fixed mock side_effect lists in onboarding tests to match actual prompt counts
+
 ### Fixed
 
 #### Test Suite Fixes

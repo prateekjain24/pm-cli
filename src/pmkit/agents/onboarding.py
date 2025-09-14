@@ -47,6 +47,9 @@ from pmkit.agents.interactive_prompt import (
     create_quick_setup_wizard,
 )
 
+# Import the new manual input form for review/edit pattern
+from pmkit.agents.manual_input import ManualInputForm
+
 logger = get_logger(__name__)
 
 
@@ -105,6 +108,9 @@ class OnboardingAgent:
         if use_interactive:
             self.interactive_flow = InteractivePromptFlow(console=self.console)
 
+        # Initialize manual input form for review/edit pattern
+        self.manual_form = ManualInputForm(console=self.console)
+
         # State management
         self.state: Dict[str, Any] = {}
         self.cancelled = False
@@ -142,12 +148,19 @@ class OnboardingAgent:
                 if not Confirm.ask("Do you want to overwrite the existing context?"):
                     raise PMKitError("Onboarding cancelled")
 
-            # Check for saved state
-            if self._load_state():
+            # Check for saved state (both from OnboardingAgent and ManualInputForm)
+            onboarding_state_exists = self._load_state()
+            manual_form_state = self.manual_form.load_progress()
+
+            if onboarding_state_exists or manual_form_state:
                 if Confirm.ask("Found saved progress. Resume from where you left off?"):
                     self.console.print("[green]Resuming onboarding...[/green]")
+                    # Merge saved states (OnboardingAgent state takes precedence)
+                    if manual_form_state and not onboarding_state_exists:
+                        self.state.update(manual_form_state)
                 else:
                     self.state = {}
+                    self.manual_form.clear_progress()
 
             # Show welcome message
             self._show_welcome()
@@ -179,8 +192,9 @@ class OnboardingAgent:
             # Finalize and save context
             context = await self._finalize_context()
 
-            # Clean up state file
+            # Clean up state files (both OnboardingAgent and ManualInputForm)
             self._cleanup_state()
+            self.manual_form.clear_progress()
 
             # Show completion message
             self._show_completion(context)
@@ -350,13 +364,17 @@ class OnboardingAgent:
                             self.prompts.ENRICHMENT_FOUND.format(company_name=company_name)
                         )
 
-                        # Display and confirm
-                        self._display_enriched_data(enriched_data)
+                        # Use the new review and edit pattern for partial enrichment
+                        # This shows all fields with status indicators (✅ ⚠️ ❌)
+                        review_data = {**self.state, **enriched_data}
 
-                        if Confirm.ask(self.prompts.ENRICHMENT_CONFIRM, default=True):
-                            self.state.update(enriched_data)
-                        else:
-                            await self._manual_enrichment(enriched_data)
+                        updated_data = self.manual_form.review_and_edit(
+                            review_data,
+                            company_type=self.state.get('company_type', 'b2b'),
+                            required_only=False
+                        )
+
+                        self.state.update(updated_data)
                     else:
                         progress.stop()
                         self.console.print(self.prompts.ENRICHMENT_NOT_FOUND)
@@ -393,38 +411,43 @@ class OnboardingAgent:
 
     async def _manual_enrichment(self, prefilled: Optional[Dict] = None) -> None:
         """
-        Manually collect enrichment data.
+        Manually collect enrichment data using the new review/edit pattern.
 
         Args:
-            prefilled: Pre-filled data from failed enrichment
+            prefilled: Pre-filled data from partial enrichment
         """
-        # Company stage
-        if not self.state.get('company_stage'):
-            stages = ["idea", "seed", "growth", "mature"]
-            for i, stage in enumerate(stages, 1):
-                self.console.print(f"  {i}. {stage}")
+        # Use the new ManualInputForm for better UX
+        company_type = self.state.get('company_type', 'b2b')
 
-            stage_idx = Prompt.ask(
-                "Company stage?",
-                choices=[str(i) for i in range(1, 5)],
-                default=prefilled.get('company_stage', '2') if prefilled else "2",
-                console=self.console
+        if prefilled:
+            # We have partial data - use review and edit mode
+            self.console.print("\n[cyan]Let's review what we found and fill in the gaps:[/cyan]")
+
+            # Merge current state with prefilled data
+            review_data = {**self.state, **prefilled}
+
+            # Review and edit with visual indicators
+            updated_data = self.manual_form.review_and_edit(
+                review_data,
+                company_type=company_type,
+                required_only=False  # Show all fields for phase 2
             )
-            self.state['company_stage'] = stages[int(stage_idx) - 1]
 
-        # Target market
-        if not self.state.get('target_market'):
-            if self.state.get('company_type') == 'b2b':
-                default = "SMBs"
-            else:
-                default = "Consumers"
+            # Update state with reviewed data
+            self.state.update(updated_data)
+        else:
+            # No enrichment data - collect missing required fields
+            self.console.print("\n[yellow]Let's gather some additional information:[/yellow]")
 
-            target = Prompt.ask(
-                "Target market?",
-                default=prefilled.get('target_market', default) if prefilled else default,
-                console=self.console
+            # Collect only missing fields for phase 2
+            updated_data = self.manual_form.collect_missing_fields(
+                self.state,
+                company_type=company_type,
+                phase=2  # Phase 2: Enrichment
             )
-            self.state['target_market'] = target
+
+            # Update state
+            self.state.update(updated_data)
 
     async def _collect_competitors(self) -> None:
         """Collect competitor information."""

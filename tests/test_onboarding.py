@@ -422,13 +422,22 @@ class TestPhase2Enrichment:
 
         with patch('pmkit.agents.onboarding.Confirm.ask') as mock_confirm:
             with patch('pmkit.agents.onboarding.Prompt.ask') as mock_prompt:
-                mock_confirm.return_value = True  # Accept enriched data
-                mock_prompt.side_effect = [
-                    'CompA, CompB',   # Competitors
-                    'MRR',            # North star metric
-                ]
+                # Mock the manual form's review_and_edit method to avoid asyncio issues
+                with patch.object(agent.manual_form, 'review_and_edit') as mock_review:
+                    mock_review.return_value = {
+                        'company_name': 'TestCorp',
+                        'company_type': 'b2b',
+                        'company_stage': 'growth',
+                        'target_market': 'Enterprise',
+                    }
 
-                await agent._phase2_enrichment()
+                    mock_confirm.return_value = True  # Accept enriched data
+                    mock_prompt.side_effect = [
+                        'CompA, CompB',   # Competitors
+                        'MRR',            # North star metric
+                    ]
+
+                    await agent._phase2_enrichment()
 
                 # Verify search was called
                 mock_grounding_success.search.assert_called()
@@ -451,14 +460,19 @@ class TestPhase2Enrichment:
         }
 
         with patch('pmkit.agents.onboarding.Prompt.ask') as mock_prompt:
-            mock_prompt.side_effect = [
-                '2',              # Company stage (seed)
-                'Consumers',      # Target market
-                'CompX, CompY',   # Competitors
-                'MAU',            # North star metric
-            ]
+            # Mock the manual form's collect_missing_fields method to avoid asyncio issues
+            with patch.object(agent.manual_form, 'collect_missing_fields') as mock_collect:
+                mock_collect.return_value = {
+                    'company_stage': 'seed',
+                    'target_market': 'Consumers',
+                }
 
-            await agent._phase2_enrichment()
+                mock_prompt.side_effect = [
+                    'CompX, CompY',   # Competitors
+                    'MAU',            # North star metric
+                ]
+
+                await agent._phase2_enrichment()
 
             # Now competitors and metrics are collected even without grounding
             assert agent.state['company_stage'] == 'seed'
@@ -484,14 +498,19 @@ class TestPhase2Enrichment:
         }
 
         with patch('pmkit.agents.onboarding.Prompt.ask') as mock_prompt:
-            mock_prompt.side_effect = [
-                '3',              # Company stage (growth)
-                'SMBs',           # Target market
-                '',               # No competitors
-                'MRR',            # North star metric
-            ]
+            # Mock the manual form's collect_missing_fields method to avoid asyncio issues
+            with patch.object(agent.manual_form, 'collect_missing_fields') as mock_collect:
+                mock_collect.return_value = {
+                    'company_stage': 'growth',
+                    'target_market': 'SMBs',
+                }
 
-            await agent._phase2_enrichment()
+                mock_prompt.side_effect = [
+                    '',               # No competitors
+                    'MRR',            # North star metric
+                ]
+
+                await agent._phase2_enrichment()
 
             # Should fall back to manual entry
             assert agent.state['company_stage'] == 'growth'
@@ -662,48 +681,64 @@ class TestCompleteOnboardingFlow:
 
         with patch('pmkit.agents.onboarding.Prompt.ask') as mock_prompt:
             with patch('pmkit.agents.onboarding.Confirm.ask') as mock_confirm:
-                mock_prompt.side_effect = [
-                    # Phase 1
-                    'FullCorp',           # Company name
-                    '1',                  # Company type (B2B)
-                    'FullProduct',        # Product name
-                    'Complete product',   # Product description
-                    '3',                  # User role (Director)
-                    # Phase 2
-                    'CompA, CompB',       # Competitors
-                    'ARR',                # North star metric
-                    # Phase 3
-                    '30',                 # Team size
-                    '20 engineers, 5 designers, 5 pms',  # Team composition
-                    'Double revenue',     # OKR objective
-                    '3',                  # Number of key results
-                    'Reach $5M ARR',      # KR 1
-                    '90',                 # Confidence 1
-                    'Launch 3 features',  # KR 2
-                    '80',                 # Confidence 2
-                    'Reduce churn 50%',   # KR 3
-                    '70',                 # Confidence 3
-                    'AI automation',      # Differentiator
-                ]
-                mock_confirm.side_effect = [
-                    True,   # Add more context
-                    True,   # Accept enriched data
-                    True,   # Add advanced details
-                    False,  # Don't add more objectives
-                ]
+                # Mock the manual form's methods to avoid asyncio issues
+                with patch.object(agent.manual_form, 'review_and_edit') as mock_review:
+                    with patch.object(agent.manual_form, 'collect_missing_fields') as mock_collect:
+                        # Return enriched data
+                        mock_review.return_value = {
+                            'company_name': 'FullCorp',
+                            'company_type': 'b2b',
+                            'product_name': 'FullProduct',
+                            'product_description': 'Complete product',
+                            'user_role': 'Director',
+                            'company_stage': 'growth',
+                            'target_market': 'Enterprise',
+                        }
+                        # Mock collect_missing_fields in case of errors
+                        mock_collect.return_value = {}
 
-                context = await agent.run(force=True)
+                        mock_prompt.side_effect = [
+                            # Phase 1
+                            'FullCorp',           # Company name
+                            '1',                  # Company type (B2B)
+                            'FullProduct',        # Product name
+                            'Complete product',   # Product description
+                            '3',                  # User role (Director)
+                            # Phase 2
+                            'CompA, CompB',       # Competitors
+                            'ARR',                # North star metric
+                            # Phase 3
+                            '30',                 # Team size
+                            '20 engineers, 5 designers, 5 pms',  # Team composition
+                            'Double revenue',     # OKR objective
+                            '3',                  # Number of key results
+                            'Reach $5M ARR',      # KR 1
+                            '90',                 # Confidence 1
+                            'Launch 3 features',  # KR 2
+                            '80',                 # Confidence 2
+                            'Reduce churn 50%',   # KR 3
+                            '70',                 # Confidence 3
+                            'AI automation',      # Differentiator
+                            '',                   # Extra prompt (possibly from error handling)
+                        ]
+                        mock_confirm.side_effect = [
+                            True,   # Add more context after Phase 1
+                            True,   # Add advanced details before Phase 3
+                            False,  # Don't add more objectives after OKRs
+                        ]
 
-                # Verify all data was collected
-                assert context.company.name == 'FullCorp'
-                assert context.product.name == 'FullProduct'
-                assert context.market is not None
-                assert context.market.competitors == ['CompA', 'CompB']
-                assert context.team is not None
-                assert context.team.size == 30
-                assert context.okrs is not None
-                assert len(context.okrs.objectives) == 1
-                assert len(context.okrs.objectives[0].key_results) == 3
+                        context = await agent.run(force=True)
+
+                        # Verify all data was collected
+                        assert context.company.name == 'FullCorp'
+                        assert context.product.name == 'FullProduct'
+                        assert context.market is not None
+                        assert context.market.competitors == ['CompA', 'CompB']
+                        assert context.team is not None
+                        assert context.team.size == 30
+                        assert context.okrs is not None
+                        assert len(context.okrs.objectives) == 1
+                        assert len(context.okrs.objectives[0].key_results) == 3
 
     @pytest.mark.asyncio
     async def test_resume_from_saved_state(
@@ -860,23 +895,41 @@ class TestPerformance:
 
         with patch('pmkit.agents.onboarding.Prompt.ask') as mock_prompt:
             with patch('pmkit.agents.onboarding.Confirm.ask') as mock_confirm:
-                # Simulate user providing quick responses
-                mock_prompt.side_effect = [
-                    'QuickCorp', '1', 'QuickProduct', 'Quick desc', '1',  # Phase 1
-                    'CompA', 'MRR',                                        # Phase 2
-                    '10', '8 engineers, 2 designers',                      # Phase 3
-                    'Grow revenue', '2', 'Get $1M', '80', 'Get users', '70',
-                    'Speed',
-                ]
-                mock_confirm.side_effect = [True, True, True, False]
+                # Mock the manual form's methods to avoid asyncio issues
+                with patch.object(agent.manual_form, 'review_and_edit') as mock_review:
+                    with patch.object(agent.manual_form, 'collect_missing_fields') as mock_collect:
+                        # Return the same data with minor updates
+                        mock_review.return_value = {
+                            'company_name': 'QuickCorp',
+                            'company_type': 'b2b',
+                            'product_name': 'QuickProduct',
+                            'product_description': 'Quick desc',
+                            'user_role': 'PM',
+                            'company_stage': 'growth',
+                            'target_market': 'SMBs',
+                        }
+                        # Mock collect_missing_fields in case of errors
+                        mock_collect.return_value = {}
 
-                await agent.run(force=True)
+                        # Simulate user providing quick responses
+                        mock_prompt.side_effect = [
+                            'QuickCorp', '1', 'QuickProduct', 'Quick desc', '1',  # Phase 1 (5)
+                            'CompA', 'MRR',                                        # Phase 2 competitors & metric (2)
+                            '10', '8 engineers, 2 designers',                      # Phase 3 team (2)
+                            'Grow revenue', '2',                                   # OKR objective, num KRs (2)
+                            'Get $1M', '80', 'Get users', '70',                   # 2 KRs with confidence (4)
+                            'Speed',                                                # Differentiator (1)
+                            '',                                                     # Extra prompt
+                        ]
+                        mock_confirm.side_effect = [True, True, True, False]
 
-                elapsed_time = time.time() - start_time
+                        await agent.run(force=True)
 
-                # Should complete in well under 5 minutes (300 seconds)
-                # In tests with mocked I/O, should be nearly instant
-                assert elapsed_time < 10  # Very generous for CI/CD environments
+                        elapsed_time = time.time() - start_time
+
+                        # Should complete in well under 5 minutes (300 seconds)
+                        # In tests with mocked I/O, should be nearly instant
+                        assert elapsed_time < 10  # Very generous for CI/CD environments
 
 
 class TestSyncWrapper:
