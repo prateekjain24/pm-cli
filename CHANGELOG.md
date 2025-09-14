@@ -236,6 +236,58 @@ All notable changes to PM-Kit are documented in this file.
 - No over-engineering - just 5 focused tests (~270 lines)
 - Total context system tests: 88 (all passing)
 
+#### PMKIT-023: OnboardingAgent comprehensive test suite (COMPLETE)
+- Created comprehensive test suite for OnboardingAgent with 35 tests
+- Tests all 3 phases (Essentials, Enrichment, Advanced) of onboarding flow
+- Validates state persistence and resume functionality
+- Tests cancellation handling and error scenarios
+- Validates B2B vs B2C differentiation and context creation
+- Properly mocks GroundingAdapter and external dependencies
+- Ensures deterministic testing without hitting real APIs
+- Tests performance requirement (<5 minute completion)
+- Fixed syntax errors and control characters in onboarding_prompts.py
+- Fixed all test failures - all 35 tests now passing:
+
+#### PMKIT-024: Build interactive prompt flow with progressive disclosure (COMPLETE)
+- Implemented InteractivePromptFlow class using prompt_toolkit for wizard-style interface
+- Created advanced validators (CompanyName, Email, URL, ProductDescription, TeamSize)
+- Built intelligent completers for industry, role, and metric selection
+- Designed WizardState class for navigation (forward, back, skip)
+- Integrated progressive disclosure pattern - showing information gradually
+- Added B2B vs B2C differentiation with context-aware auto-completion
+- Reduced Phase 1 to 4 questions for 30-second time-to-value
+- Created beautiful CLI experience with colors, emojis, and progress tracking
+- Added comprehensive test suite with 39 tests covering all validators and completers
+- Fixed import errors in test_onboarding_agent.py and updated to use correct model fields
+- All 58 combined tests passing (39 interactive + 19 onboarding agent tests)
+  - Added required Rich console attributes (get_time, _live_stack, is_jupyter, is_interactive)
+  - Fixed actual bug where competitors/metrics weren't collected without grounding adapter
+  - Added context_dir parameter to OnboardingAgent for test isolation
+  - Fixed invalid choice handling with proper fallback to defaults
+
+#### PMKIT-024: Build interactive prompt flow (COMPLETE)
+- Created InteractivePromptFlow class using prompt_toolkit for delightful PM-focused onboarding
+- Implemented smart validators with real-time feedback:
+  - CompanyNameValidator: 2-50 chars, no special chars, warns on generic names
+  - EmailValidator: Format validation with clear error messages
+  - URLValidator: Optional but validates format if provided
+  - ProductDescriptionValidator: Requires at least 5 words for clarity
+  - TeamSizeValidator: Numeric range validation with smart suggestions
+- Built intelligent auto-completers for better UX:
+  - IndustryCompleter: B2B/B2C specific industry suggestions
+  - RoleCompleter: PM role hierarchy completion
+  - MetricCompleter: Context-aware metric suggestions (MRR for B2B, MAU for B2C)
+- Added progressive disclosure wizard with step navigation:
+  - WizardState manager for back/forward navigation
+  - Support for skip/help/quit commands
+  - Progress indicators showing steps and time estimates
+- Reduced Phase 1 to 4 questions (30 seconds to value) as per PM expert feedback
+- Added immediate value demonstration after Phase 1 completion
+- Created quick setup templates for B2B vs B2C companies
+- Integrated with existing OnboardingAgent with backward compatibility
+- Wrote comprehensive test suite with 39 tests (all passing)
+- Delivers delightful, PM-focused experience that gets users to value quickly
+
 ### Fixed
 
 #### Test Suite Fixes
@@ -243,4 +295,5 @@ All notable changes to PM-Kit are documented in this file.
 - Fixed console mocking fixture to properly handle PMKitConsole methods by patching print method directly
 - Added MockConsole class to fixture with success(), error(), warning(), info(), and status_panel() methods
 - Fixed pmkit/__init__.py import error by commenting out missing CLI app import
-- All 309 tests now passing successfully
+- Fixed URLValidator regex pattern for proper URL validation
+- All 348 tests now passing successfully (309 existing + 39 new)

@@ -195,13 +195,56 @@ product/
     .cache/
 ```
 
+## CRITICAL: Directory Structure
+
+### ⚠️ Source Code Location
+**THE SOURCE CODE LIVES IN `/src/pmkit/`, NOT `/pmkit/`**
+
+This is the #1 mistake to avoid. The project uses a src-layout:
+```
+pm-cli/
+├── src/
+│   └── pmkit/          # ← ALL SOURCE CODE GOES HERE
+│       ├── __init__.py
+│       ├── agents/
+│       ├── cli/
+│       ├── config/
+│       ├── context/
+│       ├── llm/
+│       └── ...
+├── tests/              # Test files
+├── pyproject.toml      # Points to src/ directory
+└── ...
+```
+
+### Before Starting Any Work:
+1. **Check where existing code lives**: `ls -la src/pmkit/`
+2. **Verify pyproject.toml**: Should have `where = ["src"]`
+3. **Test imports immediately**: Run a simple test after creating new files
+4. **Never create `/pmkit/` directory**: This will cause duplicate, broken implementation
+
+### Real Example of This Mistake:
+When implementing PMKIT-023 (OnboardingAgent), the entire implementation was accidentally created in `/pmkit/` instead of `/src/pmkit/`, causing:
+- All imports failed with `ModuleNotFoundError`
+- Tests couldn't find the new modules
+- Duplicate, incompatible directory structure
+- Hours of debugging that could have been avoided
+
+### How to Fix If This Happens:
+1. Move all new code from `/pmkit/` to `/src/pmkit/`
+2. Delete the duplicate `/pmkit/` directory
+3. Reinstall package: `pip install -e .`
+4. Run tests to verify imports work
+
 ## Common Issues & Solutions
 
 ### Import Errors
 If you see import errors, ensure:
-1. Package is installed in editable mode: `pip install -e .`
-2. Virtual environment is activated
-3. Python version is ≥3.11
+1. **Check directory structure first**: Code must be in `/src/pmkit/`, not `/pmkit/`
+2. Package is installed in editable mode: `pip install -e .`
+3. Virtual environment is activated
+4. Python version is ≥3.11
+5. Run a test immediately after creating new modules
 
 ### Async/Await Issues
 - Never mix sync file operations with async LLM calls in the same function
@@ -213,6 +256,12 @@ If cache isn't invalidating properly:
 1. Check `ContextVersion.compute_version()` is hashing all context files
 2. Verify file paths are sorted for deterministic ordering
 3. Clear `.pmkit/.cache/` manually if needed
+
+### Testing Best Practices
+- **ALWAYS run tests after implementation** - don't assume they pass
+- Use `pytest tests/test_specific_file.py -v` to see actual output
+- If tests fail with import errors, check directory structure first
+- Mock external API calls properly to avoid hitting real services
 - never mention claude or anthropic or claude code in commit messages
 - do not use co-authored in commit messages
 - always think if you can use subagents for the job. it helps you save context space
