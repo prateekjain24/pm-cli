@@ -302,10 +302,18 @@ class LoggerAdapter:
     
     def debug(self, message: str, **kwargs: Any) -> None:
         """Log debug message."""
+        # If 'extra' is in kwargs, merge it into the top level
+        if 'extra' in kwargs:
+            extra = kwargs.pop('extra')
+            kwargs.update(extra)
         self._logger.debug(message, **kwargs)
     
     def info(self, message: str, **kwargs: Any) -> None:
         """Log info message."""
+        # If 'extra' is in kwargs, merge it into the top level
+        if 'extra' in kwargs:
+            extra = kwargs.pop('extra')
+            kwargs.update(extra)
         self._logger.info(message, **kwargs)
     
     def success(self, message: str, **kwargs: Any) -> None:
@@ -314,10 +322,18 @@ class LoggerAdapter:
     
     def warning(self, message: str, **kwargs: Any) -> None:
         """Log warning message."""
+        # If 'extra' is in kwargs, merge it into the top level
+        if 'extra' in kwargs:
+            extra = kwargs.pop('extra')
+            kwargs.update(extra)
         self._logger.warning(message, **kwargs)
     
     def error(self, message: str, **kwargs: Any) -> None:
         """Log error message."""
+        # If 'extra' is in kwargs, merge it into the top level
+        if 'extra' in kwargs:
+            extra = kwargs.pop('extra')
+            kwargs.update(extra)
         self._logger.error(message, **kwargs)
     
     def critical(self, message: str, **kwargs: Any) -> None:

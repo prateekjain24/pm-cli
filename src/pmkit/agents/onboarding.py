@@ -875,7 +875,7 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
             'team_size': 'team_size',
             'pricing_model': 'pricing_model',
             'user_count': 'user_count',
-            'key_differentiator': 'key_differentiator',
+            'key_differentiator': 'differentiator',
         }
 
         # Simple direct assignment - no dict checking needed
@@ -915,7 +915,7 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
 
         # Validate context with auto-repair
         validator = ContextValidator()
-        is_valid, validation_errors = validator.validate(context, auto_repair=True)
+        is_valid, validation_errors = validator.validate(context)
 
         # Calculate completion metrics
         metrics = calculate_completion_metrics(
