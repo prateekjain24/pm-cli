@@ -23,7 +23,6 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
@@ -239,7 +238,11 @@ class ManualInputForm:
 
         if not needs_review and not required_only:
             self.console.print("\n[green]✅ All fields look good![/green]")
-            if not Confirm.ask("Would you like to review/edit any fields?"):
+            # Use prompt_toolkit for consistency (avoid library conflict with Rich)
+            confirm = self.session.prompt(
+                HTML("<ansigreen>Would you like to review/edit any fields? (y/n): </ansigreen>")
+            ).strip().lower()
+            if confirm not in ['y', 'yes']:
                 return enriched_data
 
         # Enter edit mode

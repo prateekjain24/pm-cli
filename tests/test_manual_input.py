@@ -447,25 +447,25 @@ class TestManualInputIntegration:
         mock_prompt = MagicMock()
         manual_form.session.prompt = mock_prompt
 
-        # Mock confirm to return False (don't want to review)
-        with patch('pmkit.agents.manual_input.confirm', return_value=False):
-            # Simulate user fixing website and confirming done
-            mock_prompt.side_effect = [
-                'next',  # Go to next field needing attention
-                'https://acme.com',  # Fix website (needs review due to missing protocol)
-                'done',  # Finish editing
-            ]
+        # Simulate user choosing not to review when all fields look good
+        # and then fixing website and confirming done
+        mock_prompt.side_effect = [
+            'n',  # Don't want to review (when all fields look good)
+            'next',  # Go to next field needing attention
+            'https://acme.com',  # Fix website (needs review due to missing protocol)
+            'done',  # Finish editing
+        ]
 
-            # Run review and edit
-            updated_data = manual_form.review_and_edit(
-                sample_enriched_data,
-                company_type='b2b',
-                required_only=False
-            )
+        # Run review and edit
+        updated_data = manual_form.review_and_edit(
+            sample_enriched_data,
+            company_type='b2b',
+            required_only=False
+        )
 
-            # Website should be updated with protocol
-            assert 'acme.com' in str(updated_data.get('website', ''))
-            assert updated_data['company_name'] == 'Acme Corp'
+        # Website should be updated with protocol
+        assert 'acme.com' in str(updated_data.get('website', ''))
+        assert updated_data['company_name'] == 'Acme Corp'
 
     def test_collect_missing_fields(self, manual_form):
         """Test collecting only missing required fields."""
