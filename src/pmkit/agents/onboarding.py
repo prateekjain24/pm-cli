@@ -520,6 +520,58 @@ class OnboardingAgent:
 
     async def _collect_okrs(self) -> None:
         """Collect OKR information."""
+        # Use the new delightful OKR wizard in interactive mode
+        if self.use_interactive:
+            from pmkit.agents.okr_wizard import OKRWizard
+
+            # Determine company type and stage from state
+            company_type = 'B2B' if self.state.get('business_model', '').upper() == 'B2B' else 'B2C'
+
+            # Map funding to stage
+            funding = self.state.get('funding_stage', 'Series A').lower()
+            if 'seed' in funding or 'pre' in funding:
+                company_stage = 'seed'
+            elif 'series c' in funding or 'series d' in funding or 'ipo' in funding:
+                company_stage = 'scale'
+            else:
+                company_stage = 'growth'
+
+            # Create and run OKR wizard
+            okr_wizard = OKRWizard(
+                console=self.console,
+                state_file=self.state_file.parent / 'okr_wizard_state.yaml',
+                company_type=company_type,
+                company_stage=company_stage
+            )
+
+            try:
+                okr_context = await okr_wizard.run()
+
+                # Convert to state format
+                objectives = []
+                for obj in okr_context.objectives:
+                    objective = {
+                        'title': obj.title,
+                        'key_results': []
+                    }
+                    for kr in obj.key_results:
+                        objective['key_results'].append({
+                            'description': kr.description,
+                            'target_value': kr.target_value,
+                            'current_value': kr.current_value,
+                            'confidence': kr.confidence
+                        })
+                    objectives.append(objective)
+
+                self.state['okrs'] = objectives
+                self.state['okr_quarter'] = okr_context.quarter
+                self._save_state()
+                return
+            except Exception as e:
+                logger.warning(f"OKR wizard failed: {e}, falling back to simple flow")
+                # Fall back to simple flow
+
+        # Original simple flow for non-interactive mode
         self.console.print("\n" + self.prompts.OKR_INTRO)
         self.console.print(self.prompts.OKR_SKIP)
 

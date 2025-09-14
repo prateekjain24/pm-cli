@@ -455,6 +455,10 @@ class ManualInputForm:
         company_type: str,
     ) -> Any:
         """Edit a single field."""
+        # Special handling for OKRs - use the OKR wizard
+        if field_name == 'okrs':
+            return self._edit_okrs(current_value, company_type)
+
         metadata = FIELD_DEFINITIONS.get(field_name)
         if not metadata:
             return current_value
@@ -472,6 +476,77 @@ class ManualInputForm:
             self.console.print(f"Current value: [yellow]{current_str}[/yellow]")
 
         return self._collect_field(metadata, company_type, current_value)
+
+    def _edit_okrs(self, current_okrs: Any, company_type: str) -> Any:
+        """
+        Edit OKRs using the delightful OKR wizard.
+
+        Args:
+            current_okrs: Current OKR data (if any)
+            company_type: 'b2b' or 'b2c'
+
+        Returns:
+            Updated OKR data
+        """
+        import asyncio
+        from pmkit.agents.okr_wizard import OKRWizard
+        from pmkit.context.models import Objective, KeyResult
+
+        # Map company type to expected format
+        company_type_upper = 'B2B' if 'b2b' in company_type.lower() else 'B2C'
+
+        # Create OKR wizard
+        okr_wizard = OKRWizard(
+            console=self.console,
+            state_file=self.state_file.parent / 'okr_edit_state.yaml',
+            company_type=company_type_upper,
+            company_stage='growth'  # Default to growth for editing
+        )
+
+        # Pre-populate with existing OKRs if available
+        if current_okrs and isinstance(current_okrs, list):
+            objectives = []
+            for obj_data in current_okrs:
+                if isinstance(obj_data, dict):
+                    key_results = []
+                    for kr_data in obj_data.get('key_results', []):
+                        key_results.append(KeyResult(
+                            description=kr_data.get('description', ''),
+                            target_value=kr_data.get('target_value'),
+                            current_value=kr_data.get('current_value'),
+                            confidence=kr_data.get('confidence')
+                        ))
+                    objectives.append(Objective(
+                        title=obj_data.get('title', ''),
+                        key_results=key_results
+                    ))
+            okr_wizard.state.objectives = objectives
+
+        # Run the wizard
+        try:
+            okr_context = asyncio.run(okr_wizard.run())
+
+            # Convert back to dictionary format
+            okr_list = []
+            for obj in okr_context.objectives:
+                okr_dict = {
+                    'title': obj.title,
+                    'key_results': []
+                }
+                for kr in obj.key_results:
+                    okr_dict['key_results'].append({
+                        'description': kr.description,
+                        'target_value': kr.target_value,
+                        'current_value': kr.current_value,
+                        'confidence': kr.confidence
+                    })
+                okr_list.append(okr_dict)
+
+            return okr_list
+
+        except Exception as e:
+            self.console.print(f"[red]Error editing OKRs: {e}[/red]")
+            return current_okrs or []
 
     def _collect_field(
         self,
