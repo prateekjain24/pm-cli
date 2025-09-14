@@ -188,6 +188,8 @@ All notable changes to PM-Kit are documented in this file.
 - Fixed API key loading issue where Google API key was overwriting OpenAI key
 - Fixed GPT-5 Responses API error by removing unsupported temperature parameter
 - Fixed nested asyncio event loop errors using proper async utilities
+- Fixed remaining asyncio.run() calls in okrs.py to use run_async utility
+- Replaced prompt_toolkit confirm() with Rich's Confirm.ask() to avoid coroutine warnings
 - Made OKRs completely optional with multiple entry points:
   - Skip during init and add later via `pm okrs add`
   - Flexible entry points for progressive disclosure

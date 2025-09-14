@@ -18,12 +18,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.shortcuts import confirm
 from prompt_toolkit.validation import ValidationError, Validator
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
@@ -239,7 +239,7 @@ class ManualInputForm:
 
         if not needs_review and not required_only:
             self.console.print("\n[green]✅ All fields look good![/green]")
-            if not confirm("Would you like to review/edit any fields?"):
+            if not Confirm.ask("Would you like to review/edit any fields?"):
                 return enriched_data
 
         # Enter edit mode

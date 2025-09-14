@@ -8,7 +8,6 @@ but easily accessible when PMs are ready.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -18,6 +17,7 @@ from rich.table import Table
 from rich.text import Text
 
 from pmkit.agents.okr_wizard import OKRWizard
+from pmkit.utils.async_utils import run_async
 from pmkit.context.manager import ContextManager
 from pmkit.context.models import OKRContext
 from pmkit.exceptions import ContextError
@@ -66,7 +66,7 @@ def add_okrs(
             )
 
             wizard = OKRWizard(console=console)
-            okrs = asyncio.run(wizard.collect_okrs())
+            okrs = run_async(wizard.collect_okrs())
 
             if okrs and okrs.objectives:
                 # Save OKRs
@@ -162,7 +162,7 @@ def edit_okrs() -> None:
         )
 
         wizard = OKRWizard(console=console, existing_okrs=context.okrs)
-        updated_okrs = asyncio.run(wizard.collect_okrs())
+        updated_okrs = run_async(wizard.collect_okrs())
 
         if updated_okrs:
             context.okrs = updated_okrs
