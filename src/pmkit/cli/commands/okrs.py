@@ -59,7 +59,7 @@ def add_okrs(
                 Panel(
                     "[bold cyan]🎯 OKR Setup Wizard[/]\n\n"
                     "Let's define your quarterly objectives and key results.\n"
-                    "This takes about 2 minutes and helps align your PRDs.",
+                    "This takes about 5-10 mins and helps align your PRDs.",
                     border_style="cyan",
                     padding=(1, 2),
                 )

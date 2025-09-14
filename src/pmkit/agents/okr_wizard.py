@@ -173,7 +173,7 @@ class OKRWizard:
         # Phase 1: Quick Win (30 seconds)
         await self._phase_quick_win()
 
-        # Phase 2: Expand (optional, 2 minutes)
+        # Phase 2: Expand (optional, 5-10 mins)
         if await self._confirm_add_more():
             await self._phase_expand()
 

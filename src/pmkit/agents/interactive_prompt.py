@@ -541,7 +541,7 @@ class InteractivePromptFlow:
         if current <= 4:  # Phase 1
             return "15 seconds to your first PRD"
         elif current <= 8:  # Phase 2
-            return "2 minutes remaining"
+            return "5-10 mins remaining"
         else:  # Phase 3
             return "Almost done!"
 

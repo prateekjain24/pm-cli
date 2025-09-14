@@ -33,8 +33,8 @@ We'll use this to generate amazing PRDs tailored to your product.
 
     PHASE_INTRO = {
         1: "[bold]Phase 1: Essentials[/bold] (30 seconds)\n[dim]Just the basics to get you started[/dim]",
-        2: "[bold]Phase 2: Enrichment[/bold] (2 minutes)\n[dim]We'll search for additional context[/dim]",
-        3: "[bold]Phase 3: Advanced[/bold] (2 minutes)\n[dim]Optional details for better PRDs[/dim]",
+        2: "[bold]Phase 2: Enrichment[/bold] (5-10 mins)\n[dim]We'll search for additional context[/dim]",
+        3: "[bold]Phase 3: Advanced[/bold] (5-10 mins)\n[dim]Optional details for better PRDs[/dim]",
     }
 
     # ============================================================
