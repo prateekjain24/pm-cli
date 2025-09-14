@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import signal
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -19,6 +20,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
 from pmkit.config.models import LLMProviderConfig
 from pmkit.context.manager import ContextManager
@@ -32,6 +34,7 @@ from pmkit.context.models import (
     ProductContext,
     TeamContext,
 )
+from pmkit.context.validator import ContextValidator
 from pmkit.exceptions import PMKitError
 from pmkit.llm.grounding import GroundingAdapter
 from pmkit.llm.search.base import SearchOptions
@@ -52,6 +55,14 @@ from pmkit.agents.manual_input import ManualInputForm
 
 # Import the new enrichment service for agentic search
 from pmkit.agents.enrichment import EnrichmentService, EnrichmentResult
+
+# Import completion metrics for value demonstration
+from pmkit.agents.completion import (
+    CompletionMetrics,
+    calculate_completion_metrics,
+    suggest_next_actions,
+    time_saved_message,
+)
 
 logger = get_logger(__name__)
 
@@ -118,6 +129,12 @@ class OnboardingAgent:
         self.state: Dict[str, Any] = {}
         self.cancelled = False
 
+        # Time tracking for metrics
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
+        self.enrichment_used = False
+        self.searches_performed = 0
+
         # Setup signal handlers for graceful cancellation
         self._setup_signal_handlers()
 
@@ -145,6 +162,9 @@ class OnboardingAgent:
             PMKitError: If onboarding fails
         """
         try:
+            # Start time tracking
+            self.start_time = time.time()
+
             # Check for existing context
             if not force and self.context_manager.exists():
                 self.console.print(self.prompts.ERROR_MESSAGES['context_exists'])
@@ -346,6 +366,7 @@ class OnboardingAgent:
 
             # Initialize enrichment service
             enricher = EnrichmentService(self.grounding)
+            self.enrichment_used = True
 
             # Progress tracking with Rich
             with Progress(
@@ -921,44 +942,266 @@ Searches Used: {result.searches_used} of {EnrichmentService.MAX_SEARCHES}
 
     def _show_completion(self, context: Context) -> None:
         """
-        Show completion message with context summary.
+        Enhanced completion experience with value demonstration and celebration.
 
         Args:
             context: Completed context object
         """
-        # Format OKR summary
-        okr_summary = "[dim]No OKRs set[/dim]"
-        if context.okrs and context.okrs.objectives:
-            okr_summary = self.prompts.format_okr_summary(
-                [obj.model_dump() for obj in context.okrs.objectives]
-            )
+        # Track end time
+        self.end_time = time.time()
+        time_spent = self.end_time - self.start_time if self.start_time else 60.0
 
-        # Format summary
-        summary = self.prompts.CONTEXT_SUMMARY_TEMPLATE.format(
-            company_name=context.company.name,
-            company_type=context.company.type,
-            company_stage=context.company.stage,
-            product_name=context.product.name,
-            product_description=context.product.description,
-            metric=context.product.main_metric or "Not set",
-            competitors=', '.join(context.market.competitors) if context.market else "Not set",
-            differentiator=context.market.differentiator if context.market else "Not set",
-            team_size=context.team.size if context.team else "Not set",
-            team_composition="Not set",  # TODO: Format from roles
-            okr_summary=okr_summary,
+        # Validate context with auto-repair
+        validator = ContextValidator()
+        is_valid, validation_errors = validator.validate(context, auto_repair=True)
+
+        # Calculate completion metrics
+        metrics = calculate_completion_metrics(
+            context=context,
+            time_spent=time_spent,
+            enrichment_used=self.enrichment_used,
+            searches_performed=self.searches_performed
         )
 
-        # Show summary panel
+        # Create initialization marker
+        self._create_initialization_marker(metrics)
+
+        # Generate shareable context card
+        card_path = self._generate_context_card(context)
+
+        # Display multi-panel completion experience
+        self._display_value_panel(metrics)
+        self._display_context_highlights(context)
+        self._display_next_actions(context, metrics)
+
+        # Show shareable card notification
+        if card_path:
+            self.console.print(f"\n📄 Shareable context card saved to: [cyan]{card_path}[/cyan]")
+
+        # Show final activation prompt
+        self._show_activation_prompt(context)
+
+    def _create_initialization_marker(self, metrics: CompletionMetrics) -> None:
+        """
+        Create .pmkit/.initialized with metadata.
+
+        Args:
+            metrics: Completion metrics to include in marker
+        """
+        try:
+            marker_data = {
+                'initialized_at': datetime.now().isoformat(),
+                'version': '0.3.0',
+                'setup_time_seconds': metrics.time_spent,
+                'completeness_score': metrics.completeness_score,
+                'data_points_collected': metrics.data_points_collected,
+                'enrichment_coverage': metrics.enrichment_coverage,
+                'okr_confidence': metrics.okr_confidence,
+            }
+
+            marker_path = self.context_dir.parent / '.initialized'
+            marker_path.write_text(yaml.dump(marker_data, default_flow_style=False))
+            logger.debug(f"Created initialization marker at {marker_path}")
+        except Exception as e:
+            logger.warning(f"Could not create initialization marker: {e}")
+
+    def _display_value_panel(self, metrics: CompletionMetrics) -> None:
+        """
+        Show time savings and value created.
+
+        Args:
+            metrics: Calculated completion metrics
+        """
+        value_text = f"""⏱️  Setup Time: [cyan]{metrics.format_time_spent()}[/cyan]
+📊 Data Points: [cyan]{metrics.data_points_collected}[/cyan]
+📈 Coverage: {metrics.format_coverage_bar()}
+
+[bold green]Time Savings Unlocked:[/bold green]
+• Per PRD: ~45 minutes → 30 seconds
+• Weekly: ~3 hours saved
+• Annually: [bold]{metrics.annual_hours_saved} hours[/bold] (~{metrics.work_weeks_saved:.0f} work weeks)
+
+{time_saved_message(metrics)}"""
+
         panel = Panel(
-            summary,
-            title="📋 Your Context",
+            value_text,
+            title="✨ Value Created",
             border_style="green",
-            padding=(1, 2),
+            padding=(1, 2)
+        )
+        self.console.print("\n")
+        self.console.print(panel)
+
+    def _display_context_highlights(self, context: Context) -> None:
+        """
+        Display key context highlights in a beautiful panel.
+
+        Args:
+            context: The completed context
+        """
+        # Build highlights based on B2B vs B2C
+        if context.company.type == 'b2b':
+            focus_areas = "ROI • Integrations • Enterprise Features • Compliance"
+            templates = "Technical PRDs • API Docs • Security Reviews"
+        else:
+            focus_areas = "Engagement • Retention • Viral Loops • Mobile UX"
+            templates = "Growth PRDs • User Stories • A/B Tests"
+
+        highlights = f"""[bold cyan]{context.company.name}[/bold cyan] - {context.product.name}
+{context.product.description[:100]}...
+
+[bold]Business Model:[/bold] {context.company.type.upper()}
+[bold]Company Stage:[/bold] {context.company.stage.title()}
+[bold]North Star:[/bold] {context.product.main_metric or 'TBD'}
+
+[bold]Focus Areas:[/bold] {focus_areas}
+[bold]Templates:[/bold] {templates}"""
+
+        if context.okrs and context.okrs.objectives:
+            okr_count = len(context.okrs.objectives)
+            kr_count = sum(len(obj.key_results) for obj in context.okrs.objectives)
+            avg_confidence = sum(
+                kr.confidence or 0
+                for obj in context.okrs.objectives
+                for kr in obj.key_results
+            ) / max(kr_count, 1)
+
+            confidence_emoji = "🟢" if avg_confidence >= 70 else "🟡" if avg_confidence >= 50 else "🔴"
+            okr_line = f"\n[bold]OKRs:[/bold] {okr_count} objectives, {kr_count} key results {confidence_emoji} {avg_confidence:.0f}% confidence"
+            highlights += okr_line
+
+        panel = Panel(
+            highlights,
+            title=f"🎯 {context.company.name} Context Activated",
+            border_style="cyan",
+            padding=(1, 2)
         )
         self.console.print(panel)
 
-        # Show completion message
-        self.console.print(self.prompts.SETUP_COMPLETE)
+    def _display_next_actions(self, context: Context, metrics: CompletionMetrics) -> None:
+        """
+        Suggest personalized next steps based on context.
+
+        Args:
+            context: The completed context
+            metrics: Calculated completion metrics
+        """
+        actions = suggest_next_actions(context, metrics)
+
+        # Format actions with descriptions
+        action_lines = []
+        for i, (cmd, desc) in enumerate(actions, 1):
+            action_lines.append(f"{i}. [cyan]{cmd}[/cyan]")
+            action_lines.append(f"   [dim]{desc}[/dim]")
+
+        action_text = "\n".join(action_lines)
+
+        panel = Panel(
+            action_text,
+            title="🚀 Recommended Next Steps",
+            border_style="yellow",
+            padding=(1, 2)
+        )
+        self.console.print(panel)
+
+    def _generate_context_card(self, context: Context) -> Optional[Path]:
+        """
+        Generate markdown summary for team sharing.
+
+        Args:
+            context: The completed context
+
+        Returns:
+            Path to the generated context card, or None if failed
+        """
+        try:
+            # Format OKRs for markdown
+            okr_section = ""
+            if context.okrs and context.okrs.objectives:
+                okr_lines = []
+                for obj in context.okrs.objectives:
+                    okr_lines.append(f"\n### {obj.title}")
+                    for kr in obj.key_results:
+                        confidence_emoji = "🟢" if kr.confidence >= 70 else "🟡" if kr.confidence >= 50 else "🔴"
+                        okr_lines.append(f"- {kr.description} ({confidence_emoji} {kr.confidence}% confidence)")
+                okr_section = "\n".join(okr_lines)
+            else:
+                okr_section = "_No OKRs defined yet_"
+
+            # Format competitors
+            competitor_list = "Not specified"
+            if context.market and context.market.competitors:
+                competitor_list = ", ".join(context.market.competitors[:3])
+                if len(context.market.competitors) > 3:
+                    competitor_list += f" (+{len(context.market.competitors)-3} more)"
+
+            card_content = f"""# {context.company.name} Product Context
+Generated by PM-Kit on {datetime.now().strftime('%Y-%m-%d')}
+
+## Quick Facts
+- **Product**: {context.product.name}
+- **Model**: {context.company.type.upper()}
+- **Stage**: {context.company.stage.title()}
+- **North Star**: {context.product.main_metric or 'TBD'}
+
+## Product Description
+{context.product.description}
+
+## Current OKRs ({context.okrs.quarter if context.okrs else 'Not Set'})
+{okr_section}
+
+## Competitive Landscape
+- **Primary Competitors**: {competitor_list}
+- **Key Differentiator**: {context.market.differentiator if context.market and context.market.differentiator else 'TBD'}
+
+## Team
+- **Size**: {context.team.size if context.team else 'Not specified'} people
+- **Roles**: {', '.join(f"{role}: {count}" for role, count in context.team.roles.items()) if context.team and context.team.roles else 'Not specified'}
+
+---
+*Share this with your team to align on product context*
+*Update context anytime: `pm context edit`*
+"""
+
+            # Save to exports directory
+            export_dir = self.context_dir.parent / 'exports'
+            export_dir.mkdir(exist_ok=True)
+            card_path = export_dir / 'context-card.md'
+            card_path.write_text(card_content)
+
+            logger.debug(f"Generated context card at {card_path}")
+            return card_path
+
+        except Exception as e:
+            logger.error(f"Failed to generate context card: {e}")
+            return None
+
+    def _show_activation_prompt(self, context: Context) -> None:
+        """
+        Show final call-to-action to drive immediate value.
+
+        Args:
+            context: The completed context
+        """
+        # Get the top recommended action
+        actions = suggest_next_actions(context, CompletionMetrics(
+            time_spent=60,
+            data_points_collected=20,
+            enrichment_coverage=0.7,
+            okr_confidence=70,
+            completeness_score=0.8
+        ))
+
+        if actions:
+            first_cmd = actions[0][0]
+            # Extract just the command and title for cleaner display
+            if 'pm new prd' in first_cmd:
+                title = first_cmd.split('"')[1] if '"' in first_cmd else "Your First PRD"
+                prompt = f"\n[bold]Ready to ship faster?[/bold] Try: [cyan]pm new prd \"{title}\"[/cyan]\n"
+            else:
+                prompt = f"\n[bold]Ready to continue?[/bold] Try: [cyan]{first_cmd}[/cyan]\n"
+
+            self.console.print(prompt)
 
     def _save_state(self) -> None:
         """Save current state to disk."""
