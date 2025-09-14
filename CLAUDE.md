@@ -271,3 +271,57 @@ If cache isn't invalidating properly:
 - never cheat on tests and make them pass by rewriting the tests or writing the test in a way it always passes.
 - latest Openai model is GPT-5 that was released in August 2025
 - overall implementation plan is in IMP_Claud.md . But over the cousersew of implemntation we may have made some minor changes
+
+## OKR Management Flow
+
+### Progressive Disclosure Philosophy
+OKRs are **completely optional** during initial setup to maintain the 90-second time-to-value target. PMs can add OKRs when they're ready, not when the tool demands it.
+
+### Multiple Entry Points for OKRs
+
+1. **Dedicated OKR Commands** (Primary Method)
+```bash
+pm okrs add        # Launch the OKR wizard anytime
+pm okrs edit       # Modify existing OKRs
+pm okrs status     # View progress and confidence scores
+pm okrs archive    # Archive completed OKRs
+```
+
+2. **Contextual Prompts**
+- When creating PRDs without OKRs: Shows tip about alignment benefits
+- During status checks: Displays OKR section with add prompt if empty
+- Never blocks workflow, just gentle suggestions
+
+3. **Natural Timing**
+- Week 1: Get context set up, generate first PRD
+- Week 2: After seeing value, optionally add OKRs for alignment
+- Month 2: Review and update OKRs based on learnings
+
+### Why This Works for PMs
+- No cognitive overload during setup
+- OKRs defined AFTER understanding market context (better quality)
+- Flexible for teams that don't use OKRs
+- Just-in-time approach reduces abandonment
+
+## 90-Second Init Flow
+
+### Phase Structure
+1. **0-30 seconds**: 2 questions only (company, product)
+2. **30-60 seconds**: Live enrichment with progress updates
+3. **60-90 seconds**: Display concrete value and insights
+4. **Post-90 seconds**: Optional advanced setup (team, OKRs, etc.)
+
+### PM Archetype Templates
+Quick-start templates for common PM scenarios:
+- **B2B SaaS** (Slack-like): Enterprise, seats-based
+- **Developer Tool** (Stripe-like): API-first, usage-based
+- **Consumer App** (Spotify-like): Engagement, freemium
+- **Marketplace** (Airbnb-like): Two-sided dynamics
+- **PLG B2B** (Figma-like): Bottom-up adoption
+
+### Value Metrics That Matter
+Instead of generic "time saved", show:
+- "Generated 12 user personas from real market data"
+- "Discovered 5 competitor features you haven't tracked"
+- "Identified 3 unserved market segments"
+- "Ready to generate your first PRD in 30 seconds"

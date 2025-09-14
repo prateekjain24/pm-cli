@@ -256,27 +256,31 @@ class ConfigLoader:
         return value
     
     def _set_nested(
-        self, 
-        config_dict: Dict[str, Any], 
-        path: tuple[str, ...], 
+        self,
+        config_dict: Dict[str, Any],
+        path: tuple[str, ...],
         value: Any
     ) -> None:
         """
         Set a nested dictionary value using a path tuple.
-        
+
         Args:
             config_dict: Dictionary to modify
             path: Tuple of keys representing the nested path
             value: Value to set
         """
         current = config_dict
-        
+
         # Navigate to the parent of the target key
         for key in path[:-1]:
             if key not in current:
                 current[key] = {}
+            elif not isinstance(current[key], dict):
+                # If the value exists but is not a dict (could be None or other type),
+                # replace it with a dict to allow nested assignment
+                current[key] = {}
             current = current[key]
-        
+
         # Set the final value
         current[path[-1]] = value
     

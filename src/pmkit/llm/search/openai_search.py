@@ -1,8 +1,8 @@
 """
 OpenAI search provider using native Responses API.
 
-Uses OpenAI's native web_search_preview tool through the Responses API
-for simplified, high-performance web search with automatic citation handling.
+Uses OpenAI's integrated web search capabilities through the Responses API.
+GPT-5 includes native web search support with automatic citation handling.
 """
 
 from __future__ import annotations
@@ -30,9 +30,10 @@ logger = get_logger(__name__)
 class OpenAISearchProvider(BaseSearchProvider):
     """
     OpenAI search provider using native Responses API.
-    
-    Leverages OpenAI's web_search_preview tool for real-time
-    web search with automatic citation extraction.
+
+    Leverages OpenAI's integrated web search capabilities for real-time
+    web search with automatic citation extraction. GPT-5 includes native
+    web search support as part of the Responses API.
     """
     
     def __init__(
@@ -61,15 +62,11 @@ class OpenAISearchProvider(BaseSearchProvider):
         # Initialize OpenAI client
         self.client = AsyncOpenAI(api_key=self.api_key)
         
-        # Default model for search (GPT-4o supports web search)
-        self.model = "gpt-4o"  
+        # Default model for search - GPT-5 supports web search via Responses API
+        # Note: GPT-5 uses automatic tool selection (cannot force with tool_choice)
+        self.model = "gpt-5"  # Default to GPT-5 which includes web search
         if config and config.model:
-            # Use gpt-4o for search even if GPT-5 is configured
-            # since web_search_preview is optimized for gpt-4o
-            if "gpt-5" in config.model.lower():
-                self.model = "gpt-4o"
-            else:
-                self.model = config.model
+            self.model = config.model
         
         logger.info(f"OpenAI search provider initialized with model: {self.model}")
     
@@ -80,14 +77,18 @@ class OpenAISearchProvider(BaseSearchProvider):
     ) -> SearchResult:
         """
         Perform web search using OpenAI's native Responses API.
-        
+
+        GPT-5 includes integrated web search via openai.tools.webSearch.
+        The model uses automatic tool selection to determine when to search.
+        Note: Unlike GPT-4, GPT-5 cannot be forced to use web search via tool_choice.
+
         Args:
             query: The search query
             options: Search configuration options (mostly ignored - using native behavior)
-            
+
         Returns:
             SearchResult containing content and citations
-            
+
         Raises:
             SearchUnavailableError: If search service is unavailable
             SearchTimeoutError: If search times out
@@ -98,7 +99,7 @@ class OpenAISearchProvider(BaseSearchProvider):
             # Use native Responses API with web search tool
             response = await self.client.responses.create(
                 model=self.model,
-                tools=[{"type": "web_search_preview"}],
+                tools=[{"type": "web_search"}],
                 input=query,
                 temperature=0.3,  # Lower temperature for factual search
                 max_output_tokens=options.extras.get("max_tokens", 1500) if options.extras else 1500,

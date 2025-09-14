@@ -167,6 +167,38 @@ All notable changes to PM-Kit are documented in this file.
 - All tests passing with 100% coverage of integration scenarios
 - Total project test count: 221 tests
 
+#### PMKIT-029: Implement 'pm init' command with 90-second flow (COMPLETE)
+- Enhanced init command to follow 90-second rule for fast time-to-value
+- Reduced Phase 1 to only 2 questions (company name, product name)
+- Added PM archetype templates for instant setup:
+  - B2B SaaS (Slack-like): Enterprise features, seats-based pricing
+  - Developer Tool (Stripe-like): API-first, usage-based pricing
+  - Consumer App (Spotify-like): Engagement metrics, freemium
+  - Marketplace (Airbnb-like): Two-sided dynamics, take rates
+  - PLG B2B (Figma-like): Bottom-up adoption, collaboration
+- Implemented value metrics display showing concrete PM deliverables:
+  - Personas generated from market data
+  - Competitor features discovered
+  - Market segments identified
+  - OKR objectives created
+  - Research time saved (hours)
+- Fixed OpenAI search provider to use GPT-5 model with correct API format
+- Fixed config loading warning by handling None values in nested paths
+- Fixed init command to check context directory instead of pmkit directory
+- Made OKRs completely optional with multiple entry points:
+  - Skip during init and add later via `pm okrs add`
+  - Flexible entry points for progressive disclosure
+  - `pm okrs add` - Launch wizard anytime
+  - `pm okrs status` - View progress and confidence
+  - `pm okrs edit` - Modify existing OKRs
+- Added smart resume detection showing progress percentage
+- Implemented template mode: `pm init --template b2b_saas`
+- Added quick mode: `pm init --quick` for 1 question + max enrichment
+- Created comprehensive test suite for init command and templates
+- Auto-detects company type (B2B/B2C) from product name patterns
+- Shows next actions after initialization (generate PRD, add OKRs)
+- Delivers on 90-second promise with progress tracking
+
 #### PMKIT-018: Build ContextManager for persistence
 - Implemented ContextManager class for YAML-based context persistence
 - Added save_context() method to save complete context to individual YAML files

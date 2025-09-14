@@ -46,6 +46,10 @@ app.add_typer(new_app, name="new")
 from pmkit.cli.commands.config import app as config_app
 app.add_typer(config_app, name="config")
 
+# Add OKR management subcommand
+from pmkit.cli.commands.okrs import app as okrs_app
+app.add_typer(okrs_app, name="okrs")
+
 
 def initialize_logging() -> None:
     """Initialize logging system early in the application lifecycle."""
@@ -168,15 +172,46 @@ def init_command(
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite existing configuration"
     ),
+    resume: bool = typer.Option(
+        False, "--resume", "-r", help="Resume interrupted setup"
+    ),
+    template: Optional[str] = typer.Option(
+        None, "--template", "-t",
+        help="Use PM archetype template (b2b_saas, developer_tool, consumer_app, marketplace, plg_b2b)"
+    ),
+    quick: bool = typer.Option(
+        False, "--quick", "-q", help="Quick mode: 1 question + maximum enrichment"
+    ),
+    skip_enrichment: bool = typer.Option(
+        False, "--skip-enrichment", help="Skip web enrichment phase"
+    ),
+    non_interactive: bool = typer.Option(
+        False, "--non-interactive", help="Create template files only (for CI/CD)"
+    ),
 ) -> None:
-    """🏗️ Initialize PM-Kit in current directory."""
+    """🏗️ Initialize PM-Kit in current directory (90-second setup!)."""
     logger = get_logger(__name__)
-    logger.info("Initializing PM-Kit", extra={'force': force})
-    
+    logger.info("Initializing PM-Kit", extra={
+        'force': force,
+        'resume': resume,
+        'template': template,
+        'quick': quick,
+    })
+
     try:
         from pmkit.cli.commands.init import init_pmkit
-        init_pmkit(force=force)
-        logger.success("PM-Kit initialization completed")
+        success = init_pmkit(
+            force=force,
+            resume=resume,
+            template=template,
+            quick=quick,
+            skip_enrichment=skip_enrichment,
+            non_interactive=non_interactive,
+        )
+        if success:
+            logger.success("PM-Kit initialization completed")
+        else:
+            logger.info("PM-Kit initialization skipped or incomplete")
     except Exception as e:
         logger.error(f"PM-Kit initialization failed: {e}")
         raise

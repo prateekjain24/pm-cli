@@ -205,12 +205,20 @@ class OnboardingAgent:
                 self.state['phase2_complete'] = True
                 self._save_state()
 
-            # Phase 3: Advanced (optional)
+            # Phase 3: Advanced (optional) - Following 90-second rule
             if not self.state.get('phase3_complete'):
-                if Confirm.ask("Add advanced details (team, OKRs)?", default=False):
+                # Show value first, then ask about advanced setup
+                self.console.print("\n[green]✨ Initial context ready![/]")
+                self.console.print("[dim]You can generate your first PRD in 30 seconds![/]\n")
+
+                if Confirm.ask("[yellow]Add OKRs and team info?[/] (optional, can be done later)",
+                              console=self.console, default=False):
                     await self._phase3_advanced()
                     self.state['phase3_complete'] = True
                     self._save_state()
+                else:
+                    self.console.print("\n[dim]💡 Tip: Add OKRs anytime with [bold]pm okrs add[/][/]")
+                    self.state['phase3_complete'] = True  # Mark as complete even if skipped
 
             # Finalize and save context
             context = await self._finalize_context()
@@ -247,97 +255,77 @@ class OnboardingAgent:
 
     async def _phase1_essentials(self) -> None:
         """
-        Phase 1: Collect essential information.
+        Phase 1: Collect essential information (90-second quick start).
 
-        This phase collects the minimum required information to get started.
+        Following the 90-second rule, we only ask 2 questions:
+        1. Company name
+        2. Product name
+
+        Everything else is enriched or uses smart defaults.
         """
-        self.console.print("\n" + self.prompts.PHASE_INTRO[1])
+        self.console.print("\n[bold cyan]Let's set up your PM workspace in 90 seconds![/]")
+        self.console.print("[dim]We'll only ask 2 questions, then enrich the rest automatically.[/]\n")
 
         if self.use_interactive:
             # Use the new interactive prompt flow for a delightful experience
-            # Create wizard steps for Phase 1 (reduced to 4 questions as per PM expert feedback)
+            # Create wizard steps for Phase 1 (only 2 questions for 90-second flow)
             wizard_data = self.interactive_flow.multi_step_wizard(
-                steps=create_quick_setup_wizard('b2b')[:4],  # Only first 4 steps for Phase 1
-                allow_skip=False,  # Phase 1 is required
+                steps=create_quick_setup_wizard('b2b')[:2],  # Only company and product name
+                allow_skip=False,  # These 2 are required
                 show_progress=True,
             )
 
             # Update state with collected data
             self.state.update(wizard_data)
 
-            # Normalize company type to lowercase
-            if self.state.get('company_type'):
-                self.state['company_type'] = self.state['company_type'].lower()
-                if self.state['company_type'] == 'b2b2c':
-                    self.state['company_type'] = 'b2b2c'
-                elif 'b2c' in self.state['company_type']:
-                    self.state['company_type'] = 'b2c'
-                else:
-                    self.state['company_type'] = 'b2b'
+            # Auto-detect company type based on product name patterns
+            product_name = self.state.get('product_name', '').lower()
+            if any(kw in product_name for kw in ['api', 'sdk', 'developer', 'platform']):
+                self.state['company_type'] = 'b2b'
+            elif any(kw in product_name for kw in ['app', 'game', 'social', 'fitness']):
+                self.state['company_type'] = 'b2c'
+            else:
+                # Default to b2b as it's most common for PM tools
+                self.state['company_type'] = 'b2b'
+
+            # Set smart defaults
+            if not self.state.get('product_description'):
+                self.state['product_description'] = f"{self.state['product_name']} - To be enriched"
+            if not self.state.get('user_role'):
+                self.state['user_role'] = 'Product Manager'
 
         else:
-            # Fallback to original Rich-based prompts
+            # Fallback to original Rich-based prompts (but only 2 questions)
             # Company name
             if not self.state.get('company_name'):
-                self.console.print(self.prompts.COMPANY_NAME_HELP)
                 company_name = Prompt.ask(
-                    self.prompts.COMPANY_NAME_PROMPT,
+                    "[bold]Company name[/]",
                     console=self.console
                 )
                 self.state['company_name'] = company_name
 
-            # Company type
-            if not self.state.get('company_type'):
-                self.console.print(self.prompts.COMPANY_TYPE_HELP)
-                for i, choice in enumerate(self.prompts.COMPANY_TYPE_CHOICES, 1):
-                    self.console.print(f"  {i}. {choice}")
-
-                choice_idx = Prompt.ask(
-                    self.prompts.COMPANY_TYPE_PROMPT,
-                    choices=["1", "2", "3"],
-                    default="1",
-                    console=self.console
-                )
-                company_type_map = {"1": "b2b", "2": "b2c", "3": "b2b2c"}
-                # Handle invalid choices gracefully
-                self.state['company_type'] = company_type_map.get(choice_idx, "b2b")
-
             # Product name
             if not self.state.get('product_name'):
-                self.console.print(self.prompts.PRODUCT_NAME_HELP)
                 product_name = Prompt.ask(
-                    self.prompts.PRODUCT_NAME_PROMPT,
+                    "[bold]Product name[/]",
                     console=self.console
                 )
                 self.state['product_name'] = product_name
 
-            # Product description
-            if not self.state.get('product_description'):
-                self.console.print(self.prompts.PRODUCT_DESC_HELP)
-                product_desc = Prompt.ask(
-                    self.prompts.PRODUCT_DESC_PROMPT,
-                    console=self.console
-                )
-                self.state['product_description'] = product_desc
+            # Auto-detect company type
+            product_name_lower = self.state.get('product_name', '').lower()
+            if any(kw in product_name_lower for kw in ['api', 'sdk', 'developer', 'platform']):
+                self.state['company_type'] = 'b2b'
+            elif any(kw in product_name_lower for kw in ['app', 'game', 'social', 'fitness']):
+                self.state['company_type'] = 'b2c'
+            else:
+                self.state['company_type'] = 'b2b'
 
-            # User role (kept in Phase 1 for backward compatibility with tests)
+            # Set smart defaults for other fields
+            if not self.state.get('product_description'):
+                self.state['product_description'] = f"{self.state['product_name']} - To be enriched"
             if not self.state.get('user_role'):
-                choices = self.prompts.YOUR_ROLE_CHOICES
-                role_input = Prompt.ask(
-                    self.prompts.YOUR_ROLE_PROMPT,
-                    console=self.console
-                )
-                # Accept either index or text
-                if role_input.isdigit():
-                    idx = int(role_input) - 1
-                    if 0 <= idx < len(choices):
-                        self.state['user_role'] = choices[idx]
-                    else:
-                        self.state['user_role'] = choices[0]
-                else:
-                    # Try to match text directly, fallback to first option
-                    match = next((c for c in choices if c.lower() == role_input.lower()), None)
-                    self.state['user_role'] = match or choices[0]
+                self.state['user_role'] = 'Product Manager'  # Most common
 
     async def _phase2_enrichment(self) -> None:
         """
@@ -443,20 +431,27 @@ class OnboardingAgent:
 
     async def _phase3_advanced(self) -> None:
         """
-        Phase 3: Collect advanced optional details.
+        Phase 3: Advanced configuration (OPTIONAL).
 
-        This phase collects team structure and OKRs.
+        This phase is completely optional and can be done later.
+        Includes: team structure, OKRs, market differentiators.
         """
-        self.console.print("\n" + self.prompts.PHASE_INTRO[3])
+        self.console.print("\n[bold cyan]Advanced Configuration[/] (all optional)")
+        self.console.print("[dim]Skip any section - you can add them later.[/]\n")
 
-        # Team information
-        await self._collect_team_info()
+        # Team information (optional)
+        if Confirm.ask("Set up team structure?", console=self.console, default=False):
+            await self._collect_team_info()
 
-        # OKRs
-        await self._collect_okrs()
+        # OKRs (optional)
+        if Confirm.ask("Define OKRs now?", console=self.console, default=False):
+            await self._collect_okrs()
+        else:
+            self.console.print("[dim]→ Use [bold]pm okrs add[/] to add OKRs later[/]")
 
-        # Market differentiator
-        await self._collect_differentiator()
+        # Market differentiator (optional)
+        if Confirm.ask("Add market differentiators?", console=self.console, default=False):
+            await self._collect_differentiator()
 
     async def _manual_enrichment(self, prefilled: Optional[Dict] = None) -> None:
         """
