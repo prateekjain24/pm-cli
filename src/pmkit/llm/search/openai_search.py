@@ -97,11 +97,11 @@ class OpenAISearchProvider(BaseSearchProvider):
         
         try:
             # Use native Responses API with web search tool
+            # Note: GPT-5 Responses API doesn't support temperature parameter
             response = await self.client.responses.create(
                 model=self.model,
                 tools=[{"type": "web_search"}],
                 input=query,
-                temperature=0.3,  # Lower temperature for factual search
                 max_output_tokens=options.extras.get("max_tokens", 1500) if options.extras else 1500,
             )
             

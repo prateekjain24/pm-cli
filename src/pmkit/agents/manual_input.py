@@ -488,8 +488,8 @@ class ManualInputForm:
         Returns:
             Updated OKR data
         """
-        import asyncio
         from pmkit.agents.okr_wizard import OKRWizard
+        from pmkit.utils.async_utils import run_async
         from pmkit.context.models import Objective, KeyResult
 
         # Map company type to expected format
@@ -524,7 +524,8 @@ class ManualInputForm:
 
         # Run the wizard
         try:
-            okr_context = asyncio.run(okr_wizard.run())
+            from pmkit.utils.async_utils import run_async
+            okr_context = run_async(okr_wizard.run())
 
             # Convert back to dictionary format
             okr_list = []

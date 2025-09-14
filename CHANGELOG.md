@@ -186,6 +186,8 @@ All notable changes to PM-Kit are documented in this file.
 - Fixed config loading warning by handling None values in nested paths
 - Fixed init command to check context directory instead of pmkit directory
 - Fixed API key loading issue where Google API key was overwriting OpenAI key
+- Fixed GPT-5 Responses API error by removing unsupported temperature parameter
+- Fixed nested asyncio event loop errors using proper async utilities
 - Made OKRs completely optional with multiple entry points:
   - Skip during init and add later via `pm okrs add`
   - Flexible entry points for progressive disclosure

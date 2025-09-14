@@ -1286,8 +1286,9 @@ def run_onboarding(
             context_manager=ctx_manager,
         )
 
-        # Bridge to async
-        context = asyncio.run(agent.run(force=not resume))
+        # Bridge to async using proper utility that handles nested loops
+        from pmkit.utils.async_utils import run_async
+        context = run_async(agent.run(force=not resume))
         return (True, context)
 
     except KeyboardInterrupt:
